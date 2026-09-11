@@ -148,7 +148,7 @@ Settings (global): `users_require_assignment` (bool, default `true`),
   Reject with `401` if the key is unknown or inactive. If the key row is bound
   to a device, reject with `403` if the body's `(app, device_id)` differs.
 * Every request body carries `"app"` (see §1). Reject with `400` if missing.
-* **Latency budget: respond within 2 seconds.** The device gives up after 5
+* **Latency budget: respond within 5 seconds.** The device gives up after 10
   seconds and treats the request as "backend unreachable".
 * Timestamps are RFC 3339 UTC strings (`2026-09-11T14:03:00Z`).
 * Unknown JSON fields must be ignored (forward compatibility).

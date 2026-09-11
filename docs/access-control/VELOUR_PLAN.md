@@ -104,7 +104,7 @@ existing: check_login_scope, handle_login_request_without_validation,
 NEW ─────────────────────────────────────────────────────────────────────
   a. AC enabled but URL or API key empty       → deny "Access control is enabled but not configured on this device."
   b. lr.access_token empty                     → deny "This device requires an access token."
-  c. call backend /v1/authorize (5 s timeout)
+  c. call backend /v1/authorize (10 s timeout)
        200 allowed:false                        → deny with backend `reason`; drop offline-cache entry for peer
        404 unknown_peer                         → deny "Your RustDesk ID <id> is not registered. Ask your admin to verify the ID on file."
        network error / timeout / 5xx            → consult offline cache (§3.2); if no usable entry → deny "Authorization service unavailable. Try again later."
@@ -346,8 +346,10 @@ Changes:
    `Denied{reason_code,reason}`, `UnknownPeer`, `Unreachable`) and
    `async fn post_event(&self, ev: Event) -> Result<EventResponse>`.
    `HttpBackend` implements it with `reqwest` (already a dependency; reuse the
-   client construction pattern in `src/hbbs_http/http_client.rs`), 5 s timeout,
-   Bearer header, and `"app": ACCESS_APP_NAME` in every body. A `MockBackend` (behind `#[cfg(test)]`) records calls and
+   client construction pattern in `src/hbbs_http/http_client.rs`), a
+   `ACCESS_HTTP_TIMEOUT_SECS = 10` named constant used as the timeout by both
+   `authorize` and `post_event` so it can be tuned in one place, Bearer header,
+   and `"app": ACCESS_APP_NAME` in every body. A `MockBackend` (behind `#[cfg(test)]`) records calls and
    returns scripted outcomes.
 4. `src/access_control/cache.rs`: the offline cache (§3.2), pure functions
    over a `Vec<CacheEntry>` + load/save; sha256 via the `sha2` crate (already
@@ -504,6 +506,8 @@ option / `RENDEZVOUS_SERVER` env). Not scheduled.
 * No cross-device enforcement inside RustDesk; that is the backend's job.
 * Termination and countdown changes reach the peer within one heartbeat
   (30 s), never instantly.
+* A connection attempt may take up to 10 seconds to be refused when the
+  backend is slow or down, before the offline cache is consulted.
 * Events are at-least-once and may be reordered; the backend dedups.
 * The web client (`flutter/web`) is out of scope.
 * Sciter (legacy) UI is out of scope.
