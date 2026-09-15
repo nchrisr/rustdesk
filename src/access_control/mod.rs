@@ -13,10 +13,12 @@
 pub mod backend;
 pub mod cache;
 pub mod config;
+pub mod flow;
 pub mod policy;
 pub mod types;
 
 pub use config::AcConfig;
+pub use flow::{AcSession, Decision};
 
 /// Value of the `app` field in every request to the backend. The backend keys
 /// IDs on `(app, remote_id)` because it also stores IDs from other

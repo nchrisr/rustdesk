@@ -332,7 +332,7 @@ defaults, trimming of URL trailing slash, whitespace key). Manual (user,
 number fields, masked secrets, values persist across restart.
 Deferred: the mobile settings page (item 4) — not testable on the dev Mac.
 
-### WP2 — Authorization on login, roles, offline cache ☐
+### WP2 — Authorization on login, roles, offline cache ☑ (2026-09-14; two-machine tests pending)
 
 **Goal:** protected devices consult the backend and enforce roles; unprotected
 devices are untouched.
@@ -370,7 +370,7 @@ Changes:
      validation. Extract into `async fn velour_authorize(&mut self, lr) -> bool`
      to keep the branch readable.
    * `try_start_cm` / `ipc::Data::Login` gain `display_name` and `role` so the
-     CM can show them.
+     CM can show them. (Moved to WP4, which reworks the same CM plumbing.)
 7. Enforce view-only for `monitoring` connections (reuse the existing
    view-only permission plumbing; the device must ignore input from such a
    connection even if the peer asks otherwise).
@@ -393,6 +393,16 @@ Manual (with the mock backend script from §8): the full matrix above from two
 machines, plus "stock RustDesk peer connects to protected device → refused
 with the token message", and "Velour peer with token connects to stock
 device → works".
+
+Implementation notes (as built): the decision lives in
+`access_control::flow::decide()` (pure; 10 tests with `MockBackend`);
+`Connection::velour_authorize()` is a thin wrapper called after the
+conn-type permission checks and before password validation; login fields are
+captured in `VelourLoginFields` before `lr.union` is consumed. Monitoring
+sessions drop mouse/pointer/key/clipboard/file messages and ignore CM
+permission toggles. Single-machine smoke test (connect to own ID) passed for
+wrong token, valid token, backend down + cache, no token, switch off — see
+`TEST_LOG.md`.
 
 ### WP3 — Session events and heartbeat ☐
 
