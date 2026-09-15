@@ -1688,6 +1688,9 @@ pub trait InvokeUiSession: Send + Sync + Clone + 'static + Sized + Default {
     fn on_connected(&self, conn_type: ConnType);
     fn update_privacy_mode(&self);
     fn set_permission(&self, name: &str, value: bool);
+    /// RustDesk-Velour: elapsed/remaining time from the device. Default no-op
+    /// so the legacy UI needs no change.
+    fn session_time(&self, _elapsed_seconds: i64, _remaining_seconds: Option<i64>) {}
     fn close_success(&self);
     fn update_quality_status(&self, qs: QualityStatus);
     fn set_connection_type(&self, is_secured: bool, direct: bool, stream_type: &str);

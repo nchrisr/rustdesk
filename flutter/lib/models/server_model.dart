@@ -744,6 +744,18 @@ class ServerModel with ChangeNotifier {
     }
   }
 
+  /// RustDesk-Velour: the device reports who is connected and their time
+  /// after every access-control heartbeat.
+  void updateVelourSession(Map<String, dynamic> evt) {
+    final id = int.tryParse(evt['id'] ?? '');
+    final index = _clients.indexWhere((c) => c.id == id);
+    if (index == -1) return;
+    final c = _clients[index];
+    c.velourDisplayName.value = evt['display_name'] ?? '';
+    c.velourRole.value = evt['role'] ?? '';
+    c.velourRemaining.value = int.tryParse(evt['remaining'] ?? '');
+  }
+
   void updateVoiceCallState(Map<String, dynamic> evt) {
     try {
       final client = Client.fromJson(jsonDecode(evt["client"]));
@@ -820,6 +832,11 @@ class Client {
   bool incomingVoiceCall = false;
 
   RxInt unreadChatMessageCount = 0.obs;
+
+  // RustDesk-Velour: identity and time under access control.
+  final velourDisplayName = ''.obs;
+  final velourRole = ''.obs;
+  final velourRemaining = Rxn<int>();
 
   Client(this.id, this.authorized, this.isFileTransfer, this.isViewCamera,
       this.name, this.peerId, this.keyboard, this.clipboard, this.audio);

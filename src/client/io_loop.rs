@@ -1950,6 +1950,12 @@ impl<T: InvokeUiSession> Remote<T> {
                             );
                         }
                     }
+                    Some(misc::Union::SessionTime(t)) => {
+                        self.handler.session_time(
+                            t.elapsed_seconds,
+                            if t.has_remaining { Some(t.remaining_seconds) } else { None },
+                        );
+                    }
                     Some(misc::Union::CloseReason(c)) => {
                         self.sent_close_reason = true; // The controlled end will close, no need to send close reason
                         self.handler.msgbox("error", "Connection Error", &c, "");

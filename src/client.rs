@@ -2751,6 +2751,9 @@ pub struct LoginConfigHandler {
     /// one the probe latched to the raw pipe logs in without asking, so an
     /// upgraded peer keeps giving it the raw pipe.
     pub(crate) port_forward_multiplex: bool,
+    /// RustDesk-Velour: this session is an admin's view-only monitor-wall
+    /// tile. Sent in the login request; set by the monitor wall (WP5).
+    pub monitoring: bool,
     /// Set once per window, before its mappings start: every accept's claim
     /// reads it.
     pub(crate) port_forward_mux: bool,
@@ -3769,6 +3772,8 @@ impl LoginConfigHandler {
             os_login,
             hwid,
             avatar,
+            access_token: LocalConfig::get_option(keys::OPTION_ACCESS_TOKEN),
+            monitoring: self.monitoring,
             ..Default::default()
         };
         match self.conn_type {
@@ -5063,6 +5068,8 @@ pub fn check_if_retry(msgtype: &str, title: &str, text: &str, retry_for_relay: b
                 && !text.to_lowercase().contains("resolve")
                 && !text.to_lowercase().contains("mismatch")
                 && !text.to_lowercase().contains("manually")
+                // RustDesk-Velour: a session the backend ended must not reconnect.
+                && !text.to_lowercase().contains("access control")
                 && !text.to_lowercase().contains("restricted")
                 && !text.to_lowercase().contains("incoming only")
                 && !text.to_lowercase().contains("not allowed")))
@@ -5078,6 +5085,24 @@ mod retry_tests {
             "error",
             "Connection Error",
             "Incoming only mode",
+            false,
+        ));
+    }
+
+    #[test]
+    fn access_control_stop_is_not_retryable() {
+        // A backend-ended session must not silently reconnect; the reason
+        // text is the backend's, so only the device-added prefix is stable.
+        assert!(!check_if_retry(
+            "error",
+            "Connection Error",
+            "Access control: Your weekly limit has been reached.",
+            false,
+        ));
+        assert!(check_if_retry(
+            "error",
+            "Connection Error",
+            "Your weekly limit has been reached.",
             false,
         ));
     }

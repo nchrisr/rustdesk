@@ -52,6 +52,7 @@ enum SettingsTabKey {
   general,
   safety,
   network,
+  accessControl,
   display,
   account,
   printer,
@@ -71,6 +72,7 @@ class DesktopSettingPage extends StatefulWidget {
     if (!bind.isDisableSettings() &&
         bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
       SettingsTabKey.network,
+    if (!bind.isDisableSettings()) SettingsTabKey.accessControl,
     if (!bind.isIncomingOnly()) SettingsTabKey.display,
     if (!bind.isDisableAccount()) SettingsTabKey.account,
     if (isWindows &&
@@ -196,6 +198,10 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           settingTabs
               .add(_TabInfo(tab, 'Network', Icons.link_outlined, Icons.link));
           break;
+        case SettingsTabKey.accessControl:
+          settingTabs.add(_TabInfo(tab, 'Access Control',
+              Icons.verified_user_outlined, Icons.verified_user));
+          break;
         case SettingsTabKey.display:
           settingTabs.add(_TabInfo(tab, 'Display',
               Icons.desktop_windows_outlined, Icons.desktop_windows));
@@ -229,6 +235,9 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           break;
         case SettingsTabKey.network:
           children.add(const _Network());
+          break;
+        case SettingsTabKey.accessControl:
+          children.add(const _AccessControl());
           break;
         case SettingsTabKey.display:
           children.add(const _Display());
@@ -2426,6 +2435,228 @@ class __PrinterState extends State<_Printer> {
   }
 }
 
+//#region access control (RustDesk-Velour)
+
+class _AccessControl extends StatefulWidget {
+  const _AccessControl({Key? key}) : super(key: key);
+
+  @override
+  State<_AccessControl> createState() => _AccessControlState();
+}
+
+class _AccessControlState extends State<_AccessControl>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+  bool locked = !isWeb && bind.mainIsInstalled();
+
+  final scrollController = ScrollController();
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return ListView(controller: scrollController, children: [
+      _lock(locked, 'Unlock Access Control Settings', () {
+        locked = false;
+        setState(() => {});
+      }),
+      preventMouseKeyBuilder(
+        block: locked,
+        child: Column(children: [
+          deviceCard(context),
+          peerCard(context),
+        ]),
+      ),
+    ]).marginOnly(bottom: _kListViewBottomMargin);
+  }
+
+  /// Settings for this machine as the one being connected TO.
+  Widget deviceCard(BuildContext context) {
+    update(bool _) => setState(() {});
+    return _Card(title: 'Access Control', children: [
+      _OptionCheckBox(context, 'Enable access control', kOptionAccessControl,
+          update: update, enabled: !locked),
+      _accessControlWarning(context),
+      _accessTextOption(context,
+          label: 'Backend URL',
+          key: kOptionAccessApiUrl,
+          hint: 'https://access.example.com',
+          enabled: !locked,
+          onApplied: () => setState(() {})),
+      _accessTextOption(context,
+          label: 'Device API key',
+          key: kOptionAccessApiKey,
+          obscure: true,
+          enabled: !locked,
+          onApplied: () => setState(() {})),
+      _accessTextOption(context,
+          label: 'Heartbeat interval (seconds)',
+          key: kOptionAccessHeartbeatSecs,
+          hint: '30',
+          numeric: true,
+          minValue: 5,
+          enabled: !locked),
+      _accessTextOption(context,
+          label: 'Offline cache expiry (days)',
+          key: kOptionAccessCacheDays,
+          hint: '7',
+          numeric: true,
+          minValue: 1,
+          enabled: !locked),
+    ]);
+  }
+
+  /// Settings for this machine as the one connecting OUT to others.
+  Widget peerCard(BuildContext context) {
+    return _Card(title: 'Connecting to protected devices', children: [
+      Text(translate('access-token-tip'),
+              style: TextStyle(
+                  fontSize: _kContentFontSize,
+                  color: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.color
+                      ?.withOpacity(0.7)))
+          .marginOnly(left: _kContentHMargin, bottom: 8),
+      _accessTextOption(context,
+          label: 'Personal token',
+          key: kOptionAccessToken,
+          obscure: true,
+          isLocal: true,
+          enabled: !locked),
+    ]);
+  }
+
+  /// Shown when the switch is on but URL or key is missing: the device will
+  /// refuse incoming connections rather than fall back to password-only.
+  Widget _accessControlWarning(BuildContext context) {
+    final enabled = mainGetBoolOptionSync(kOptionAccessControl);
+    final url = bind.mainGetOptionSync(key: kOptionAccessApiUrl).trim();
+    final key = bind.mainGetOptionSync(key: kOptionAccessApiKey).trim();
+    final misconfigured = enabled && (url.isEmpty || key.isEmpty);
+    return Offstage(
+      offstage: !misconfigured,
+      child: Row(children: [
+        Icon(Icons.warning_amber_rounded,
+            size: 16, color: Colors.orange.shade700),
+        SizedBox(width: 6),
+        Flexible(
+          child: Text(translate('access-control-not-configured-tip'),
+              style: TextStyle(
+                  fontSize: _kContentFontSize,
+                  color: Colors.orange.shade700)),
+        ),
+      ]).marginOnly(left: _kContentHMargin, top: 4, bottom: 8),
+    );
+  }
+}
+
+/// A labelled text field with an Apply button that stores an option.
+/// Device options go through `mainSetOption`; `isLocal` ones through
+/// `mainSetLocalOption`. Label sits above the field so the row fits the
+/// 540 px settings card; validation errors show in red under the field.
+Widget _accessTextOption(
+  BuildContext context, {
+  required String label,
+  required String key,
+  String hint = '',
+  bool obscure = false,
+  bool numeric = false,
+  int minValue = 0,
+  bool isLocal = false,
+  bool enabled = true,
+  VoidCallback? onApplied,
+}) {
+  final current = isLocal
+      ? bind.mainGetLocalOption(key: key)
+      : bind.mainGetOptionSync(key: key);
+  final controller = TextEditingController(text: current);
+  final applyEnabled = false.obs;
+  final error = ''.obs;
+  final hidden = obscure.obs;
+  final isOptFixed = !isLocal && isOptionFixed(key);
+  final usable = enabled && !isOptFixed;
+
+  String? validate(String v) {
+    if (!numeric || v.isEmpty) return null; // empty = use default
+    final n = int.tryParse(v);
+    if (n == null || n < minValue) {
+      return translate('access-min-value-tip').replaceFirst('{}', '$minValue');
+    }
+    return null;
+  }
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(translate(label),
+          style: TextStyle(
+              fontSize: _kContentFontSize,
+              color: disabledTextColor(context, usable))),
+      Row(children: [
+        Expanded(
+          child: Obx(() => TextField(
+                controller: controller,
+                enabled: usable,
+                obscureText: hidden.value,
+                onChanged: (v) {
+                  applyEnabled.value = true;
+                  error.value = validate(v.trim()) ?? '';
+                },
+                inputFormatters: numeric
+                    ? [FilteringTextInputFormatter.allow(RegExp(r'^\d{0,6}$'))]
+                    : null,
+                decoration: InputDecoration(
+                  hintText: hint,
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                  suffixIcon: obscure
+                      ? IconButton(
+                          tooltip: translate(
+                              hidden.value ? 'Show' : 'Hide'),
+                          icon: Icon(
+                              hidden.value
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              size: 18),
+                          onPressed: () => hidden.value = !hidden.value,
+                        )
+                      : null,
+                ),
+              ).workaroundFreezeLinuxMint()),
+        ),
+        const SizedBox(width: 10),
+        Obx(() => ElevatedButton(
+              onPressed: applyEnabled.value && usable && error.value.isEmpty
+                  ? () async {
+                      final v = controller.text.trim();
+                      applyEnabled.value = false;
+                      if (isLocal) {
+                        await bind.mainSetLocalOption(key: key, value: v);
+                      } else {
+                        await bind.mainSetOption(key: key, value: v);
+                      }
+                      onApplied?.call();
+                    }
+                  : null,
+              child: Text(translate('Apply')),
+            )),
+      ]).marginOnly(top: 4),
+      Obx(() => Offstage(
+            offstage: error.value.isEmpty,
+            child: Text(error.value,
+                    style: TextStyle(
+                        fontSize: _kContentFontSize - 2,
+                        color: Theme.of(context).colorScheme.error))
+                .marginOnly(top: 4),
+          )),
+    ],
+  ).marginOnly(left: _kContentHMargin, right: _kContentHMargin, bottom: 12);
+}
+
+//#endregion
+
 class _About extends StatefulWidget {
   const _About({Key? key}) : super(key: key);
 
@@ -2459,13 +2690,17 @@ class _AboutState extends State<_About> {
       final scrollController = ScrollController();
       return SingleChildScrollView(
         controller: scrollController,
-        child: _Card(title: translate('About RustDesk'), children: [
+        child: _Card(title: translate('About RustDesk-Velour'), children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(
                 height: 8.0,
               ),
+              SelectionArea(
+                  child: Text(
+                          '${translate('Edition')}: ${bind.mainGetEditionNameSync()}')
+                      .marginSymmetric(vertical: 4.0)),
               SelectionArea(
                   child: Text('${translate('Version')}: $version')
                       .marginSymmetric(vertical: 4.0)),

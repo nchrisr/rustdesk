@@ -1064,6 +1064,17 @@ pub fn get_app_name() -> String {
     hbb_common::config::APP_NAME.read().unwrap().clone()
 }
 
+/// Suffix that marks this fork. Kept separate from `APP_NAME`, which config
+/// paths, IPC socket names and platform services key off and must stay stable.
+pub const EDITION_NAME: &str = "Velour";
+
+/// Display name of this build, e.g. "RustDesk-Velour". UI only; never used for
+/// paths or service names.
+#[inline]
+pub fn get_edition_name() -> String {
+    format!("{}-{}", get_app_name(), EDITION_NAME)
+}
+
 #[inline]
 pub fn is_rustdesk() -> bool {
     hbb_common::config::APP_NAME.read().unwrap().eq("RustDesk")
@@ -2822,6 +2833,14 @@ mod tests {
         time::{interval, interval_at, sleep, Duration, Instant, Interval},
     };
     use std::collections::HashSet;
+
+    #[test]
+    fn edition_name_is_app_name_with_velour_suffix() {
+        // Branding must be derived from APP_NAME, never replace it: paths and
+        // service names read APP_NAME and must not see "Velour".
+        assert_eq!(get_edition_name(), format!("{}-Velour", get_app_name()));
+        assert_eq!(get_app_name(), "RustDesk");
+    }
 
     #[inline]
     fn get_timestamp_secs() -> u128 {

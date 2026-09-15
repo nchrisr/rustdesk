@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hbb/desktop/pages/monitor_wall_page.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
@@ -31,6 +32,21 @@ class DesktopTabPage extends StatefulWidget {
             key: const ValueKey(kTabLabelSettingPage),
             initialTabkey: initialPage,
           )));
+    } catch (e) {
+      debugPrintStack(label: '$e');
+    }
+  }
+
+  /// RustDesk-Velour: opens (or focuses) the admin monitor wall tab.
+  static void onAddMonitorWall() {
+    try {
+      DesktopTabController tabController = Get.find<DesktopTabController>();
+      tabController.add(TabInfo(
+          key: kTabLabelMonitorWall,
+          label: kTabLabelMonitorWall,
+          selectedIcon: Icons.grid_view_sharp,
+          unselectedIcon: Icons.grid_view_outlined,
+          page: const MonitorWallPage(key: ValueKey(kTabLabelMonitorWall))));
     } catch (e) {
       debugPrintStack(label: '$e');
     }

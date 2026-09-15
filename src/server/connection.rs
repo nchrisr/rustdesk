@@ -187,6 +187,33 @@ pub enum AuthConnType {
     Terminal,
 }
 
+/// RustDesk-Velour: what the authorization step needs from a `LoginRequest`,
+/// captured before the request's union is consumed by the login flow.
+struct VelourLoginFields {
+    peer_id: String,
+    token: String,
+    monitoring: bool,
+    conn_type: &'static str,
+}
+
+impl From<&LoginRequest> for VelourLoginFields {
+    fn from(lr: &LoginRequest) -> Self {
+        let conn_type = match lr.union.as_ref() {
+            Some(login_request::Union::FileTransfer(_)) => "file_transfer",
+            Some(login_request::Union::ViewCamera(_)) => "view_camera",
+            Some(login_request::Union::Terminal(_)) => "terminal",
+            Some(login_request::Union::PortForward(_)) => "port_forward",
+            _ => "remote",
+        };
+        Self {
+            peer_id: lr.my_id.clone(),
+            token: lr.access_token.clone(),
+            monitoring: lr.monitoring,
+            conn_type,
+        }
+    }
+}
+
 impl AuthConnType {
     fn as_str(self) -> &'static str {
         match self {
@@ -308,6 +335,15 @@ pub struct Connection {
     server_audit_conn: String,
     server_audit_file: String,
     controlled_context: Option<ControlledContext>,
+    /// RustDesk-Velour: set once the access-control backend (or the offline
+    /// cache) approved this connection. `None` when access control is off.
+    ac: Option<crate::access_control::AcSession>,
+    ac_reporter: Option<crate::access_control::events::SessionReporter>,
+    tx_ac: mpsc::UnboundedSender<crate::access_control::events::HeartbeatResult>,
+    /// Set before `on_close` when the close was ordered by the backend.
+    ac_end_reason: Option<&'static str>,
+    /// First SessionTime goes out after the login response, not before it.
+    velour_initial_time_pending: bool,
     lr: LoginRequest,
     // Authentication retries may update credentials, but not the requested session scope.
     // A digest, so no peer-controlled strings are retained.
@@ -450,6 +486,7 @@ impl Connection {
         let (tx_video, mut rx_video) = mpsc::unbounded_channel::<(Instant, Arc<Message>)>();
         let (tx_input, _rx_input) = std_mpsc::channel();
         let (tx_from_authed, mut rx_from_authed) = mpsc::unbounded_channel::<ipc::Data>();
+        let (tx_ac, mut rx_ac) = mpsc::unbounded_channel();
         let mut hbbs_rx = crate::hbbs_http::sync::signal_receiver();
         let (tx_post_seq, rx_post_seq) = mpsc::unbounded_channel();
         tokio::spawn(async move {
@@ -516,6 +553,11 @@ impl Connection {
             server_audit_conn: "".to_owned(),
             server_audit_file: "".to_owned(),
             controlled_context,
+            ac: None,
+            ac_reporter: None,
+            tx_ac,
+            ac_end_reason: None,
+            velour_initial_time_pending: false,
             lr: Default::default(),
             login_scope: None,
             peer_argb: 0u32,
@@ -681,6 +723,9 @@ impl Connection {
                             msg_out.set_misc(misc);
                             conn.send(msg_out).await;
                             conn.chat_unanswered = false;
+                        }
+                        ipc::Data::SwitchPermission{name, ..} if conn.is_monitoring_conn() => {
+                            log::info!("Ignoring permission change {} on a monitoring session", name);
                         }
                         ipc::Data::SwitchPermission{name, enabled} => {
                             log::info!("Change permission {} -> {}", name, enabled);
@@ -1032,6 +1077,11 @@ impl Connection {
                         break;
                     }
                 },
+                Some(hb) = rx_ac.recv() => {
+                    if !conn.velour_on_heartbeat(hb).await {
+                        break;
+                    }
+                }
                 Some(data) = rx_from_authed.recv() => {
                     match data {
                         #[cfg(all(target_os = "windows", feature = "flutter"))]
@@ -1812,7 +1862,10 @@ impl Connection {
             self.session_key(),
             self.tx_from_authed.clone(),
             self.lr.clone(),
+            self.ac.clone(),
         ));
+        self.velour_start_reporting();
+        self.velour_initial_time_pending = self.ac_reporter.is_some();
         self.session_last_recv_time = SESSIONS
             .lock()
             .unwrap()
@@ -2093,6 +2146,21 @@ impl Connection {
             }
             self.keyboard = false;
             self.send_permission(Permission::Keyboard, false).await;
+        }
+        if self.velour_initial_time_pending {
+            self.velour_initial_time_pending = false;
+            self.velour_send_session_time().await;
+        }
+        if self.is_monitoring_conn() {
+            if !wait_session_id_confirm {
+                self.try_sub_monitor_services();
+            }
+            self.keyboard = false;
+            self.clipboard = false;
+            self.file = false;
+            self.send_permission(Permission::Keyboard, false).await;
+            self.send_permission(Permission::Clipboard, false).await;
+            self.send_permission(Permission::File, false).await;
         } else if sub_service {
             if !wait_session_id_confirm {
                 self.try_sub_monitor_services();
@@ -2235,6 +2303,175 @@ impl Connection {
         self.clipboard_enabled()
             && self.file_transfer_enabled()
             && crate::get_builtin_option(keys::OPTION_ONE_WAY_FILE_TRANSFER) != "Y"
+    }
+
+    /// RustDesk-Velour: asks the access-control backend whether this login may
+    /// proceed (plan §3.1 steps a–d). Returns false after sending the denial;
+    /// the caller closes the connection. A no-op when access control is off or
+    /// this connection was already approved (password retries).
+    async fn velour_authorize(&mut self, peer: VelourLoginFields) -> bool {
+        use crate::access_control::{
+            backend::HttpBackend, cache::OfflineCache, flow, types::AuthorizeRequest,
+            AcConfig, Decision, ACCESS_APP_NAME,
+        };
+        let cfg = AcConfig::load();
+        if !cfg.enabled || self.ac.is_some() {
+            return true;
+        }
+        let req = AuthorizeRequest {
+            app: ACCESS_APP_NAME,
+            peer_id: peer.peer_id.clone(),
+            peer_token: peer.token.trim().to_owned(),
+            device_id: Config::get_id(),
+            conn_type: peer.conn_type,
+            monitoring: peer.monitoring,
+            connected: raii::AuthedConnID::ac_connected_peers(),
+        };
+        let lr_my_id = peer.peer_id;
+        let backend = HttpBackend::new(&cfg.api_url, &cfg.api_key);
+        let mut cache = OfflineCache::load();
+        let now = hbb_common::chrono::Utc::now().timestamp();
+        let decision = flow::decide(&backend, &cfg, &mut cache, &req, now).await;
+        allow_err!(cache.save());
+        match decision {
+            Decision::Allow(session) => {
+                log::info!(
+                    "access control: allowed peer {} as {} ({}){}",
+                    lr_my_id,
+                    session.role.as_str(),
+                    session.display_name,
+                    if session.offline_authorized { " [offline cache]" } else { "" }
+                );
+                self.ac = Some(session);
+                true
+            }
+            Decision::Deny {
+                reason_code,
+                message,
+            } => {
+                log::info!("access control: denied peer {} ({reason_code})", lr_my_id);
+                crate::access_control::events::report_denied(
+                    std::sync::Arc::new(backend),
+                    Config::get_id(),
+                    crate::common::hostname(),
+                    lr_my_id,
+                    self.lr.my_name.clone(),
+                    req.conn_type,
+                    reason_code,
+                    message.clone(),
+                );
+                self.send_login_error(message).await;
+                sleep(1.).await;
+                false
+            }
+        }
+    }
+
+    /// RustDesk-Velour: begins `session_start` + heartbeats for an approved
+    /// connection (plan §3.3). No-op without an approved session.
+    fn velour_start_reporting(&mut self) {
+        use crate::access_control::{
+            backend::{AccessBackend, HttpBackend},
+            events::{SessionInfo, SessionReporter},
+            AcConfig,
+        };
+        let Some(session) = self.ac.clone() else {
+            return;
+        };
+        let cfg = AcConfig::load();
+        if !cfg.is_configured() {
+            return;
+        }
+        let backend: std::sync::Arc<dyn AccessBackend> =
+            std::sync::Arc::new(HttpBackend::new(&cfg.api_url, &cfg.api_key));
+        let info = SessionInfo {
+            device_id: Config::get_id(),
+            device_name: crate::common::hostname(),
+            peer_id: self.lr.my_id.clone(),
+            peer_name: self.lr.my_name.clone(),
+            conn_type: VelourLoginFields::from(&self.lr).conn_type,
+            session,
+            started_at: std::time::SystemTime::now(),
+        };
+        self.ac_reporter = Some(SessionReporter::start(
+            backend,
+            info,
+            std::time::Duration::from_secs(cfg.heartbeat_secs),
+            std::sync::Arc::new(|| AcConfig::load().enabled),
+            self.tx_ac.clone(),
+        ));
+    }
+
+    /// RustDesk-Velour: tells the peer (Misc::SessionTime) and the connection
+    /// manager (ipc::Data::VelourSession) the elapsed and remaining time.
+    async fn velour_send_session_time(&mut self) {
+        let (Some(ac), Some(reporter)) = (self.ac.as_ref(), self.ac_reporter.as_ref()) else {
+            return;
+        };
+        let elapsed = reporter.elapsed_seconds() as i64;
+        let remaining = ac.remaining_seconds;
+        let data = ipc::Data::VelourSession {
+            id: self.inner.id(),
+            display_name: ac.display_name.clone(),
+            role: ac.role.as_str().to_owned(),
+            elapsed_seconds: elapsed,
+            remaining_seconds: remaining,
+        };
+        let mut msg_out = Message::new();
+        msg_out.set_misc(crate::access_control::session_time_misc(elapsed, remaining));
+        self.send(msg_out).await;
+        self.send_to_cm(data);
+    }
+
+    /// RustDesk-Velour: applies a heartbeat answer. Returns false when the
+    /// backend ended the session and the loop must exit.
+    async fn velour_on_heartbeat(
+        &mut self,
+        hb: crate::access_control::events::HeartbeatResult,
+    ) -> bool {
+        use crate::access_control::events::HeartbeatResult;
+        match hb {
+            HeartbeatResult::Continue { remaining_seconds } => {
+                if let Some(ac) = self.ac.as_mut() {
+                    ac.remaining_seconds = remaining_seconds;
+                }
+                self.velour_send_session_time().await;
+                true
+            }
+            HeartbeatResult::Stop { reason } => {
+                log::info!("access control: backend ended session: {reason}");
+                self.ac_end_reason = Some("backend_stop");
+                // The prefix keeps the peer from auto-reconnecting (see check_if_retry).
+                self.send_close_reason_no_retry(&format!("Access control: {reason}"))
+                    .await;
+                self.on_close("access control stop", true).await;
+                false
+            }
+            HeartbeatResult::Disabled => {
+                self.ac_reporter = None;
+                true
+            }
+        }
+    }
+
+    /// RustDesk-Velour: sends `session_end` once, on whatever path closed
+    /// the connection.
+    fn velour_end_reporting(&mut self, close_reason: &str) {
+        if let Some(reporter) = self.ac_reporter.take() {
+            let reason = self
+                .ac_end_reason
+                .take()
+                .unwrap_or_else(|| crate::access_control::events::end_reason(close_reason));
+            reporter.end(reason, close_reason);
+        }
+    }
+
+    /// RustDesk-Velour: an admin's view-only monitor-wall tile. Input,
+    /// clipboard and file messages from it are dropped regardless of the
+    /// permissions the connection manager shows.
+    #[inline]
+    fn is_monitoring_conn(&self) -> bool {
+        self.ac.as_ref().map(|a| a.monitoring).unwrap_or(false)
     }
 
     fn try_start_cm(&mut self, peer_id: String, name: String, authorized: bool) {
@@ -2770,6 +3007,7 @@ impl Connection {
             if !self.check_id_whitelist().await {
                 return false;
             }
+            let velour_fields = VelourLoginFields::from(&lr);
             match lr.union {
                 Some(login_request::Union::FileTransfer(ft)) => {
                     if !Self::permission(
@@ -2844,6 +3082,10 @@ impl Connection {
             {
                 self.send_login_error(crate::client::LOGIN_MSG_OFFLINE)
                     .await;
+                return false;
+            }
+
+            if !self.velour_authorize(velour_fields).await {
                 return false;
             }
 
@@ -3046,7 +3288,7 @@ impl Connection {
             match msg.union {
                 #[allow(unused_mut)]
                 Some(message::Union::MouseEvent(mut me)) => {
-                    if self.is_authed_view_camera_conn() {
+                    if self.is_authed_view_camera_conn() || self.is_monitoring_conn() {
                         return true;
                     }
                     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -3085,7 +3327,7 @@ impl Connection {
                     self.update_auto_disconnect_timer();
                 }
                 Some(message::Union::PointerDeviceEvent(pde)) => {
-                    if self.is_authed_view_camera_conn() {
+                    if self.is_authed_view_camera_conn() || self.is_monitoring_conn() {
                         return true;
                     }
                     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -3127,7 +3369,7 @@ impl Connection {
                 Some(message::Union::KeyEvent(..)) => {}
                 #[cfg(any(target_os = "android"))]
                 Some(message::Union::KeyEvent(mut me)) => {
-                    if self.is_authed_view_camera_conn() {
+                    if self.is_authed_view_camera_conn() || self.is_monitoring_conn() {
                         return true;
                     }
                     let key = match me.mode.enum_value() {
@@ -3242,6 +3484,9 @@ impl Connection {
                     self.update_auto_disconnect_timer();
                 }
                 Some(message::Union::Clipboard(cb)) => {
+                    if self.is_monitoring_conn() {
+                        return true;
+                    }
                     if self.should_handle_text_clipboard_message() && self.clipboard_enabled() {
                         #[cfg(not(any(target_os = "android", target_os = "ios")))]
                         update_clipboard(vec![cb], ClipboardSide::Host);
@@ -3270,6 +3515,9 @@ impl Connection {
                     }
                 }
                 Some(message::Union::MultiClipboards(_mcb)) => {
+                    if self.is_monitoring_conn() {
+                        return true;
+                    }
                     if self.should_handle_text_clipboard_message() && self.clipboard_enabled() {
                         #[cfg(not(any(target_os = "android", target_os = "ios")))]
                         update_clipboard(_mcb.clipboards, ClipboardSide::Host);
@@ -3352,6 +3600,9 @@ impl Connection {
                     }
                 }
                 Some(message::Union::FileAction(fa)) => {
+                    if self.is_monitoring_conn() {
+                        return true;
+                    }
                     let mut handle_fa = self.file_transfer.is_some();
                     if !handle_fa {
                         if let Some(file_action::Union::Send(s)) = fa.union.as_ref() {
@@ -5117,6 +5368,7 @@ impl Connection {
             return;
         }
         self.closed = true;
+        self.velour_end_reporting(reason);
         // If voice A,B -> C, and A,B has voice call
         // B disconnects, C will reset the voice call input.
         //
@@ -6666,6 +6918,8 @@ pub struct AuthedConn {
     pub session_key: SessionKey,
     pub sender: mpsc::UnboundedSender<Data>,
     pub printer: bool,
+    /// RustDesk-Velour: `(peer_id, session)` when admitted under access control.
+    pub ac: Option<(String, crate::access_control::AcSession)>,
 }
 
 mod raii {
@@ -6701,6 +6955,24 @@ mod raii {
         /// controlling peer whose link dies reconnects while the connection it left behind runs
         /// on here until its own timeout; locking for that one would lock a session that has
         /// already resumed on its replacement.
+        /// RustDesk-Velour: the live access-controlled remote connections, as
+        /// the local rules and the backend see them.
+        pub fn ac_connected_peers() -> Vec<crate::access_control::types::ConnectedPeer> {
+            AUTHED_CONNS
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|c| c.conn_type == AuthConnType::Remote)
+                .filter_map(|c| c.ac.as_ref())
+                .map(|(peer_id, a)| crate::access_control::types::ConnectedPeer {
+                    peer_id: peer_id.clone(),
+                    role: a.role,
+                    session_id: a.session_id.clone(),
+                    monitoring: a.monitoring,
+                })
+                .collect()
+        }
+
         pub fn session_reconnected(id: i32, key: &SessionKey) -> bool {
             let conns = AUTHED_CONNS.lock().unwrap();
             conns
@@ -6714,6 +6986,7 @@ mod raii {
             session_key: SessionKey,
             sender: mpsc::UnboundedSender<Data>,
             lr: LoginRequest,
+            ac: Option<crate::access_control::AcSession>,
         ) -> Self {
             let printer = conn_type == crate::server::AuthConnType::Remote
                 && crate::is_support_remote_print(&lr.version)
@@ -6724,6 +6997,7 @@ mod raii {
                 session_key,
                 sender,
                 printer,
+                ac: ac.map(|a| (lr.my_id.clone(), a)),
             });
             Self::check_wake_lock();
             use std::sync::Once;
@@ -7612,6 +7886,7 @@ mod test {
             session_key,
             sender: mpsc::unbounded_channel().0,
             printer: false,
+            ac: None,
         };
         let mine = key(7, "peer");
         let remote = AuthConnType::Remote;

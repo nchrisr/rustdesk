@@ -185,6 +185,26 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     );
   }
 
+  /// Small pill marking this build as the Velour edition, so it is
+  /// distinguishable from stock RustDesk at a glance.
+  Widget buildEditionTag(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: MyTheme.accent.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        bind.mainGetEditionNameSync().split('-').last,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: MyTheme.accent,
+        ),
+      ),
+    );
+  }
+
   buildIDBoard(BuildContext context) {
     final model = gFFI.serverModel;
     return Container(
@@ -210,15 +230,33 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          translate("ID"),
-                          style: TextStyle(
-                              fontSize: 14,
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
-                                  ?.color
-                                  ?.withOpacity(0.5)),
+                        Row(
+                          children: [
+                            Text(
+                              translate("ID"),
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.color
+                                      ?.withOpacity(0.5)),
+                            ),
+                            buildEditionTag(context).marginOnly(left: 8),
+                            if (bind
+                                .mainGetLocalOption(key: kOptionAccessToken)
+                                .trim()
+                                .isNotEmpty)
+                              Tooltip(
+                                message: translate('Monitor sessions'),
+                                child: InkWell(
+                                  onTap: DesktopTabPage.onAddMonitorWall,
+                                  child: Icon(Icons.grid_view_outlined,
+                                          size: 16, color: MyTheme.accent)
+                                      .marginOnly(left: 8),
+                                ),
+                              ),
+                          ],
                         ).marginOnly(top: 5),
                         buildPopupMenu(context)
                       ],

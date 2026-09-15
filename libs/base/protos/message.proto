@@ -84,6 +84,11 @@ message LoginRequest {
   string my_platform = 13;
   bytes hwid = 14;
   string avatar = 17;
+  // RustDesk-Velour: personal token issued by the access-control backend.
+  // Empty when the peer has none. Ignored by stock RustDesk devices.
+  string access_token = 18;
+  // RustDesk-Velour: an admin opening a view-only monitor-wall tile.
+  bool monitoring = 19;
 }
 
 message Terminal {
@@ -856,7 +861,16 @@ message Misc {
     DisplayResolution change_display_resolution = 36;
     MessageQuery message_query = 37;
     int32 follow_current_display = 38;
+    SessionTime session_time = 39;
   }
+}
+
+// RustDesk-Velour: device -> peer after every heartbeat. Drives the elapsed
+// display and the remaining-time countdown.
+message SessionTime {
+  int64 elapsed_seconds = 1;
+  bool has_remaining = 2;
+  int64 remaining_seconds = 3;
 }
 
 message VoiceCallRequest {

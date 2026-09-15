@@ -25,6 +25,7 @@ import 'package:flutter_hbb/models/user_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:flutter_hbb/models/desktop_render_texture.dart';
 import 'package:flutter_hbb/models/terminal_model.dart';
+import 'package:flutter_hbb/models/session_time_model.dart';
 import 'package:flutter_hbb/common/shared_state.dart';
 import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:flutter_hbb/utils/http_service.dart' as http;
@@ -367,6 +368,13 @@ class FfiModel with ChangeNotifier {
         Clipboard.setData(ClipboardData(text: evt['content']));
       } else if (name == 'permission') {
         updatePermission(evt, peerId);
+      } else if (name == 'session_time') {
+        parent.target?.sessionTimeModel.update(
+          elapsedSecs: int.tryParse(evt['elapsed'] ?? '') ?? 0,
+          remainingSecs: int.tryParse(evt['remaining'] ?? ''),
+        );
+      } else if (name == 'velour_session') {
+        parent.target?.serverModel.updateVelourSession(evt);
       } else if (name == 'chat_client_mode') {
         parent.target?.chatModel
             .receive(ChatModel.clientModeID, evt['text'] ?? '');
@@ -3720,6 +3728,9 @@ enum ConnType {
 }
 
 /// Flutter state manager and data communication with the Rust core.
+int _localIntOption(String key, int fallback) =>
+    int.tryParse(bind.mainGetLocalOption(key: key)) ?? fallback;
+
 class FFI {
   var id = '';
   var version = '';
@@ -3743,6 +3754,7 @@ class FFI {
   late final PeerTabModel peerTabModel; // global
   late final QualityMonitorModel qualityMonitorModel; // session
   late final RecordingModel recordingModel; // session
+  late final SessionTimeModel sessionTimeModel; // session (RustDesk-Velour)
   late final InputModel inputModel; // session
   late final ElevationModel elevationModel; // session
   late final CmFileModel cmFileModel; // cm
@@ -3772,6 +3784,14 @@ class FFI {
     groupModel = GroupModel(WeakReference(this));
     qualityMonitorModel = QualityMonitorModel(WeakReference(this));
     recordingModel = RecordingModel(WeakReference(this));
+    sessionTimeModel = SessionTimeModel(
+      showBelowSecs: _localIntOption(kOptionAccessCountdownShowSecs, 4 * 3600),
+      redBelowSecs: _localIntOption(kOptionAccessCountdownRedSecs, 30 * 60),
+      onMilestone: (secs) => showToast(
+          translate('access-time-left-tip')
+              .replaceFirst('{}', SessionTimeModel.format(secs)),
+          timeout: const Duration(seconds: 6)),
+    );
     inputModel = InputModel(WeakReference(this));
     elevationModel = ElevationModel(WeakReference(this));
     cmFileModel = CmFileModel(WeakReference(this));
@@ -3814,6 +3834,7 @@ class FFI {
     int? tabWindowId,
     int? display,
     List<int>? displays,
+    bool monitoring = false,
   }) {
     closed = false;
     if (isMobile) mobileReset();
@@ -3860,6 +3881,9 @@ class FFI {
         isSharedPassword: isSharedPassword ?? false,
         connToken: connToken,
       );
+      if (monitoring) {
+        bind.sessionSetMonitoringSync(sessionId: sessionId, value: true);
+      }
     } else if (display != null) {
       if (displays == null) {
         debugPrint(
@@ -4061,6 +4085,7 @@ class FFI {
   /// Close the remote session.
   Future<void> close({bool closeSession = true}) async {
     closed = true;
+    sessionTimeModel.dispose();
     if (isWeb) {
       platformFFI.clearVideoFrameCallback();
     }
