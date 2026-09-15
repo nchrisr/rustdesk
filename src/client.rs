@@ -2751,6 +2751,9 @@ pub struct LoginConfigHandler {
     /// one the probe latched to the raw pipe logs in without asking, so an
     /// upgraded peer keeps giving it the raw pipe.
     pub(crate) port_forward_multiplex: bool,
+    /// RustDesk-Velour: this session is an admin's view-only monitor-wall
+    /// tile. Sent in the login request; set by the monitor wall (WP5).
+    pub monitoring: bool,
     /// Set once per window, before its mappings start: every accept's claim
     /// reads it.
     pub(crate) port_forward_mux: bool,
@@ -3769,6 +3772,8 @@ impl LoginConfigHandler {
             os_login,
             hwid,
             avatar,
+            access_token: LocalConfig::get_option(keys::OPTION_ACCESS_TOKEN),
+            monitoring: self.monitoring,
             ..Default::default()
         };
         match self.conn_type {
