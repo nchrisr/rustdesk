@@ -9,7 +9,7 @@
       "name": "Alice Admin",
       "role": "admin",
       "token": "tok-admin",
-      "remote_ids": [{"app": "rustdesk", "remote_id": "111111111"}]
+      "remote_ids": [{"app": "rustdesk", "remote_id": "436072673"}]
     },
     {
       "id": "u_mgr",

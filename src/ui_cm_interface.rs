@@ -189,6 +189,18 @@ pub trait InvokeUiCM: Send + Clone + 'static + Sized {
 
     fn new_message(&self, id: i32, text: String);
 
+    /// RustDesk-Velour: access-control identity and time for a connection.
+    /// Default no-op so the legacy UI needs no change.
+    fn velour_session(
+        &self,
+        _id: i32,
+        _display_name: &str,
+        _role: &str,
+        _elapsed_seconds: i64,
+        _remaining_seconds: Option<i64>,
+    ) {
+    }
+
     fn change_theme(&self, dark: String);
 
     fn change_language(&self);
@@ -583,6 +595,21 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                 }
                                 Data::ChatMessage { text } => {
                                     self.cm.new_message(self.conn_id, text);
+                                }
+                                Data::VelourSession {
+                                    id,
+                                    display_name,
+                                    role,
+                                    elapsed_seconds,
+                                    remaining_seconds,
+                                } => {
+                                    self.cm.ui_handler.velour_session(
+                                        id,
+                                        &display_name,
+                                        &role,
+                                        elapsed_seconds,
+                                        remaining_seconds,
+                                    );
                                 }
                                 Data::SwitchPermission { name, enabled } => {
                                     // Keep this branch scoped to privacy mode rollback.

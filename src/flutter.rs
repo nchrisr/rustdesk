@@ -683,6 +683,18 @@ impl InvokeUiSession for FlutterHandler {
         self.push_event("permission", &[(name, &value.to_string())], &[]);
     }
 
+    fn session_time(&self, elapsed_seconds: i64, remaining_seconds: Option<i64>) {
+        let remaining = remaining_seconds.map(|r| r.to_string()).unwrap_or_default();
+        self.push_event(
+            "session_time",
+            &[
+                ("elapsed", &elapsed_seconds.to_string()),
+                ("remaining", &remaining),
+            ],
+            &[],
+        );
+    }
+
     // unused in flutter
     fn close_success(&self) {}
 
@@ -1515,6 +1527,27 @@ pub mod connection_manager {
             self.push_event(
                 "chat_server_mode",
                 &[("id", &id.to_string()), ("text", &text)],
+            );
+        }
+
+        fn velour_session(
+            &self,
+            id: i32,
+            display_name: &str,
+            role: &str,
+            elapsed_seconds: i64,
+            remaining_seconds: Option<i64>,
+        ) {
+            let remaining = remaining_seconds.map(|r| r.to_string()).unwrap_or_default();
+            self.push_event(
+                "velour_session",
+                &[
+                    ("id", &id.to_string()),
+                    ("display_name", &display_name.to_owned()),
+                    ("role", &role.to_owned()),
+                    ("elapsed", &elapsed_seconds.to_string()),
+                    ("remaining", &remaining),
+                ],
             );
         }
 

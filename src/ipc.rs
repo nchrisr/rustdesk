@@ -345,6 +345,14 @@ pub enum Data {
     ChatMessage {
         text: String,
     },
+    /// RustDesk-Velour: who is connected under access control and their time.
+    VelourSession {
+        id: i32,
+        display_name: String,
+        role: String,
+        elapsed_seconds: i64,
+        remaining_seconds: Option<i64>,
+    },
     SwitchPermission {
         name: String,
         enabled: bool,

@@ -292,5 +292,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("access-token-tip", "Paste the personal token issued by your organization. It is sent with every outgoing connection so protected devices can identify you."),
         ("access-control-not-configured-tip", "Access control is enabled but the backend URL or device API key is missing. Incoming connections will be refused until both are set."),
         ("access-min-value-tip", "Must be a whole number of at least {}."),
+        ("access-time-left-tip", "Time left in this session: {}"),
+        ("Time left", "Time left"),
+        ("Elapsed", "Elapsed"),
     ].iter().cloned().collect();
 }

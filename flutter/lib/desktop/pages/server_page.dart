@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_hbb/models/session_time_model.dart';
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
@@ -429,6 +430,22 @@ class _CmHeaderState extends State<_CmHeader>
     with AutomaticKeepAliveClientMixin {
   Client get client => widget.client;
 
+  /// RustDesk-Velour: "· Time left hh:mm:ss" once the device knows it.
+  Widget _velourTimeLeft(Client client) {
+    return Obx(() {
+      final r = client.velourRemaining.value;
+      if (r == null) return const SizedBox.shrink();
+      final red = r <= 30 * 60;
+      return Text(
+        ' · ${translate('Time left')} ${SessionTimeModel.format(r)}',
+        style: TextStyle(
+          color: red ? Colors.red.shade200 : Colors.white,
+          fontWeight: red ? FontWeight.w600 : FontWeight.normal,
+        ),
+      );
+    });
+  }
+
   final _time = 0.obs;
   Timer? _timer;
 
@@ -500,6 +517,15 @@ class _CmHeaderState extends State<_CmHeader>
                     style: TextStyle(color: Colors.white, fontSize: 14),
                   ),
                 ),
+                // RustDesk-Velour: who the backend says this is.
+                Obx(() => client.velourDisplayName.value.isEmpty
+                    ? const SizedBox.shrink()
+                    : FittedBox(
+                        child: Text(
+                          '${client.velourDisplayName.value} · ${client.velourRole.value}',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      )),
                 if (client.type_() == ClientType.terminal)
                   FittedBox(
                     child: Text(
@@ -548,7 +574,8 @@ class _CmHeaderState extends State<_CmHeader>
                           ),
                           style: TextStyle(color: Colors.white),
                         ),
-                      )
+                      ),
+                    if (client.authorized) _velourTimeLeft(client),
                   ],
                 ))
               ],

@@ -17,6 +17,8 @@
 | 2026-09-15 | WP3 (pre-commit) | WP3 | Self-connect, heartbeat 5 s: `session_start`, heartbeats with elapsed 5/10/15…, `continue:true` | pass (mock log) |
 | 2026-09-15 | WP3 (pre-commit) | WP3 | `POST /mock/stop/<sid>` → next heartbeat `continue:false` → device closes, `session_end` reason `backend_stop`, peer shown "Access control: …" | pass |
 | 2026-09-15 | WP3 (pre-commit) | WP3 | Peer must not auto-reconnect after a backend stop (found reconnect; fixed via reason prefix + `check_if_retry`) | pass after fix |
+| 2026-09-15 | WP4 (pre-commit) | WP4 | Mock reports 3 h 59 m left → badge "Time left" on remote view, name·role and "· Time left" in CM | pass (user) |
+| 2026-09-15 | WP4 (pre-commit) | WP4 | Remaining set to 9 min → badge red, milestone toast | pass (user) |
 | — | — | WP2 | Two-machine matrix (user/manager/user-blocked, stock peer, stock device) | pending — user will test from a Windows machine |
 
 Single-machine method: run `python3 -u docs/access-control/mock_backend.py --port 8787 --users <file>`

@@ -451,7 +451,7 @@ are sent to the peer as "Access control: <reason>" and `check_if_retry` in
 `session_start`/`session_end` retry 8 times with doubling backoff from 2 s
 (≈4 min). 8 unit tests with paused tokio time; live self-connect test passed.
 
-### WP4 — Countdown and elapsed time UI ☐
+### WP4 — Countdown and elapsed time UI ☑ (2026-09-15; mobile overlay deferred)
 
 **Goal:** the person connected and the person at the device can both see
 time remaining, and are warned ahead of a cut-off.
@@ -479,6 +479,18 @@ values; Flutter widget tests for the countdown widget (hidden above threshold,
 shown below, red under threshold, milestone toast fires once per threshold).
 Manual: mock backend returns decreasing `remaining_seconds`; verify overlay on
 peer and CM on device; verify a clean stop at 0 with the reason.
+
+Implementation notes (as built): proto `Misc.session_time = 39`
+(`SessionTime{elapsed, has_remaining, remaining}`), built by
+`access_control::session_time_misc()`; the device sends it after the login
+response and after every heartbeat, plus `ipc::Data::VelourSession` to the
+CM. Peer: `InvokeUiSession::session_time` (default no-op) → Flutter event
+`session_time` → `SessionTimeModel` (pure Dart, 6 tests: thresholds, local
+ticking, resync, one warning per report, formatting) → `SessionCountdown`
+badge top-right of the remote view. CM: `InvokeUiCM::velour_session`
+(default no-op) → `velour_session` event → `Client.velour*` → name·role line
+and "· Time left" beside the elapsed timer. Milestone toasts use
+`access-time-left-tip`. Deferred: the mobile remote-page overlay (item 5).
 
 ### WP5 — Admin monitor wall ☐
 

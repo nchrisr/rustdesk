@@ -342,6 +342,8 @@ pub struct Connection {
     tx_ac: mpsc::UnboundedSender<crate::access_control::events::HeartbeatResult>,
     /// Set before `on_close` when the close was ordered by the backend.
     ac_end_reason: Option<&'static str>,
+    /// First SessionTime goes out after the login response, not before it.
+    velour_initial_time_pending: bool,
     lr: LoginRequest,
     // Authentication retries may update credentials, but not the requested session scope.
     // A digest, so no peer-controlled strings are retained.
@@ -555,6 +557,7 @@ impl Connection {
             ac_reporter: None,
             tx_ac,
             ac_end_reason: None,
+            velour_initial_time_pending: false,
             lr: Default::default(),
             login_scope: None,
             peer_argb: 0u32,
@@ -1862,6 +1865,7 @@ impl Connection {
             self.ac.clone(),
         ));
         self.velour_start_reporting();
+        self.velour_initial_time_pending = self.ac_reporter.is_some();
         self.session_last_recv_time = SESSIONS
             .lock()
             .unwrap()
@@ -2142,7 +2146,12 @@ impl Connection {
             }
             self.keyboard = false;
             self.send_permission(Permission::Keyboard, false).await;
-        } else if self.is_monitoring_conn() {
+        }
+        if self.velour_initial_time_pending {
+            self.velour_initial_time_pending = false;
+            self.velour_send_session_time().await;
+        }
+        if self.is_monitoring_conn() {
             if !wait_session_id_confirm {
                 self.try_sub_monitor_services();
             }
@@ -2393,6 +2402,27 @@ impl Connection {
         ));
     }
 
+    /// RustDesk-Velour: tells the peer (Misc::SessionTime) and the connection
+    /// manager (ipc::Data::VelourSession) the elapsed and remaining time.
+    async fn velour_send_session_time(&mut self) {
+        let (Some(ac), Some(reporter)) = (self.ac.as_ref(), self.ac_reporter.as_ref()) else {
+            return;
+        };
+        let elapsed = reporter.elapsed_seconds() as i64;
+        let remaining = ac.remaining_seconds;
+        let data = ipc::Data::VelourSession {
+            id: self.inner.id(),
+            display_name: ac.display_name.clone(),
+            role: ac.role.as_str().to_owned(),
+            elapsed_seconds: elapsed,
+            remaining_seconds: remaining,
+        };
+        let mut msg_out = Message::new();
+        msg_out.set_misc(crate::access_control::session_time_misc(elapsed, remaining));
+        self.send(msg_out).await;
+        self.send_to_cm(data);
+    }
+
     /// RustDesk-Velour: applies a heartbeat answer. Returns false when the
     /// backend ended the session and the loop must exit.
     async fn velour_on_heartbeat(
@@ -2405,6 +2435,7 @@ impl Connection {
                 if let Some(ac) = self.ac.as_mut() {
                     ac.remaining_seconds = remaining_seconds;
                 }
+                self.velour_send_session_time().await;
                 true
             }
             HeartbeatResult::Stop { reason } => {
