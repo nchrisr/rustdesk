@@ -73,6 +73,19 @@ pub const OPTION_VERIFICATION_METHOD: &str = "verification-method";
 pub const OPTION_TEMPORARY_PASSWORD_LENGTH: &str = "temporary-password-length";
 pub const OPTION_CUSTOM_RENDEZVOUS_SERVER: &str = "custom-rendezvous-server";
 pub const OPTION_API_SERVER: &str = "api-server";
+
+// RustDesk-Velour access control (docs/access-control/VELOUR_PLAN.md §6).
+// Device scope (the machine being connected to):
+pub const OPTION_ACCESS_CONTROL: &str = "access-control";
+pub const OPTION_ACCESS_API_URL: &str = "access-api-url";
+pub const OPTION_ACCESS_API_KEY: &str = "access-api-key";
+pub const OPTION_ACCESS_HEARTBEAT_SECS: &str = "access-heartbeat-secs";
+pub const OPTION_ACCESS_CACHE_DAYS: &str = "access-cache-days";
+// Local scope (the machine connecting out):
+pub const OPTION_ACCESS_TOKEN: &str = "access-token";
+pub const OPTION_ACCESS_COUNTDOWN_SHOW_SECS: &str = "access-countdown-show-secs";
+pub const OPTION_ACCESS_COUNTDOWN_RED_SECS: &str = "access-countdown-red-secs";
+pub const OPTION_ACCESS_WALL_MAX_TILES: &str = "access-wall-max-tiles";
 pub const OPTION_KEY: &str = "key";
 pub const OPTION_PRESET_ADDRESS_BOOK_NAME: &str = "preset-address-book-name";
 pub const OPTION_PRESET_ADDRESS_BOOK_TAG: &str = "preset-address-book-tag";
@@ -263,6 +276,10 @@ pub const KEYS_LOCAL_SETTINGS: &[&str] = &[
     OPTION_SHOW_VIRTUAL_JOYSTICK,
     OPTION_ENABLE_FLUTTER_HTTP_ON_RUST,
     OPTION_ALLOW_ASK_FOR_NOTE,
+    OPTION_ACCESS_TOKEN,
+    OPTION_ACCESS_COUNTDOWN_SHOW_SECS,
+    OPTION_ACCESS_COUNTDOWN_RED_SECS,
+    OPTION_ACCESS_WALL_MAX_TILES,
 ];
 // DEFAULT_SETTINGS, OVERWRITE_SETTINGS
 pub const KEYS_SETTINGS: &[&str] = &[
@@ -326,6 +343,11 @@ pub const KEYS_SETTINGS: &[&str] = &[
     OPTION_ALLOW_AUTO_UPDATE,
     OPTION_ALLOW_KCP_CC,
     OPTION_ALLOW_WEBRTC_CC,
+    OPTION_ACCESS_CONTROL,
+    OPTION_ACCESS_API_URL,
+    OPTION_ACCESS_API_KEY,
+    OPTION_ACCESS_HEARTBEAT_SECS,
+    OPTION_ACCESS_CACHE_DAYS,
 ];
 
 // BUILDIN_SETTINGS

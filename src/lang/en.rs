@@ -280,5 +280,17 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("port-forward-mux-tip", "Carry every connection of a port-forward mapping over a single connection to the peer, instead of connecting and logging in again for each one."),
         ("About RustDesk-Velour", "About RustDesk-Velour"),
         ("Edition", "Edition"),
+        ("Access Control", "Access Control"),
+        ("Unlock Access Control Settings", "Unlock Access Control Settings"),
+        ("Enable access control", "Enable access control"),
+        ("Backend URL", "Backend URL"),
+        ("Device API key", "Device API key"),
+        ("Heartbeat interval (seconds)", "Heartbeat interval (seconds)"),
+        ("Offline cache expiry (days)", "Offline cache expiry (days)"),
+        ("Connecting to protected devices", "Connecting to protected devices"),
+        ("Personal token", "Personal token"),
+        ("access-token-tip", "Paste the personal token issued by your organization. It is sent with every outgoing connection so protected devices can identify you."),
+        ("access-control-not-configured-tip", "Access control is enabled but the backend URL or device API key is missing. Incoming connections will be refused until both are set."),
+        ("access-min-value-tip", "Must be a whole number of at least {}."),
     ].iter().cloned().collect();
 }

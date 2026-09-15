@@ -130,6 +130,17 @@ const String kOptionAllowRemoteConfigModification =
     "allow-remote-config-modification";
 const String kOptionVerificationMethod = "verification-method";
 const String kOptionApproveMode = "approve-mode";
+// RustDesk-Velour access control. Device scope:
+const String kOptionAccessControl = "access-control";
+const String kOptionAccessApiUrl = "access-api-url";
+const String kOptionAccessApiKey = "access-api-key";
+const String kOptionAccessHeartbeatSecs = "access-heartbeat-secs";
+const String kOptionAccessCacheDays = "access-cache-days";
+// Local scope (this machine connecting out):
+const String kOptionAccessToken = "access-token";
+const String kOptionAccessCountdownShowSecs = "access-countdown-show-secs";
+const String kOptionAccessCountdownRedSecs = "access-countdown-red-secs";
+const String kOptionAccessWallMaxTiles = "access-wall-max-tiles";
 const String kOptionAllowNumericOneTimePassword =
     "allow-numeric-one-time-password";
 const String kOptionCollapseToolbar = "collapse_toolbar";

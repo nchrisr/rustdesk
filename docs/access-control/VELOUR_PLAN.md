@@ -304,7 +304,7 @@ window has a custom tab bar rather than a native title, so the edition name
 shows only on session windows there; the name beside the Apple menu is the
 bundle name and intentionally stays "RustDesk".
 
-### WP1 — Master switch, settings UI, config keys ☐
+### WP1 — Master switch, settings UI, config keys ☑ (2026-09-14; mobile settings page deferred)
 
 **Goal:** all keys from §6 exist; a new "Access Control" section in Settings
 edits them; nothing else changes behaviour yet.
@@ -327,8 +327,10 @@ Changes:
 5. `src/lang/en.rs`: strings.
 
 Tests: Rust tests for `AcConfig` parsing (defaults, bad numbers fall back to
-defaults, trimming of URL trailing slash). Flutter widget test for the warning
-banner. Manual: toggle switch, restart app, values persist.
+defaults, trimming of URL trailing slash, whitespace key). Manual (user,
+2026-09-14): warning banner appears/disappears, inline red validation on the
+number fields, masked secrets, values persist across restart.
+Deferred: the mobile settings page (item 4) — not testable on the dev Mac.
 
 ### WP2 — Authorization on login, roles, offline cache ☐
 
