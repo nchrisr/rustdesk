@@ -13,6 +13,7 @@
 pub mod backend;
 pub mod cache;
 pub mod config;
+pub mod events;
 pub mod flow;
 pub mod policy;
 pub mod types;

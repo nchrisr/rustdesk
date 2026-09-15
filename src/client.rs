@@ -5068,6 +5068,8 @@ pub fn check_if_retry(msgtype: &str, title: &str, text: &str, retry_for_relay: b
                 && !text.to_lowercase().contains("resolve")
                 && !text.to_lowercase().contains("mismatch")
                 && !text.to_lowercase().contains("manually")
+                // RustDesk-Velour: a session the backend ended must not reconnect.
+                && !text.to_lowercase().contains("access control")
                 && !text.to_lowercase().contains("restricted")
                 && !text.to_lowercase().contains("incoming only")
                 && !text.to_lowercase().contains("not allowed")))
@@ -5083,6 +5085,24 @@ mod retry_tests {
             "error",
             "Connection Error",
             "Incoming only mode",
+            false,
+        ));
+    }
+
+    #[test]
+    fn access_control_stop_is_not_retryable() {
+        // A backend-ended session must not silently reconnect; the reason
+        // text is the backend's, so only the device-added prefix is stable.
+        assert!(!check_if_retry(
+            "error",
+            "Connection Error",
+            "Access control: Your weekly limit has been reached.",
+            false,
+        ));
+        assert!(check_if_retry(
+            "error",
+            "Connection Error",
+            "Your weekly limit has been reached.",
             false,
         ));
     }

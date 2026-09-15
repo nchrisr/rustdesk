@@ -338,6 +338,10 @@ pub struct Connection {
     /// RustDesk-Velour: set once the access-control backend (or the offline
     /// cache) approved this connection. `None` when access control is off.
     ac: Option<crate::access_control::AcSession>,
+    ac_reporter: Option<crate::access_control::events::SessionReporter>,
+    tx_ac: mpsc::UnboundedSender<crate::access_control::events::HeartbeatResult>,
+    /// Set before `on_close` when the close was ordered by the backend.
+    ac_end_reason: Option<&'static str>,
     lr: LoginRequest,
     // Authentication retries may update credentials, but not the requested session scope.
     // A digest, so no peer-controlled strings are retained.
@@ -480,6 +484,7 @@ impl Connection {
         let (tx_video, mut rx_video) = mpsc::unbounded_channel::<(Instant, Arc<Message>)>();
         let (tx_input, _rx_input) = std_mpsc::channel();
         let (tx_from_authed, mut rx_from_authed) = mpsc::unbounded_channel::<ipc::Data>();
+        let (tx_ac, mut rx_ac) = mpsc::unbounded_channel();
         let mut hbbs_rx = crate::hbbs_http::sync::signal_receiver();
         let (tx_post_seq, rx_post_seq) = mpsc::unbounded_channel();
         tokio::spawn(async move {
@@ -547,6 +552,9 @@ impl Connection {
             server_audit_file: "".to_owned(),
             controlled_context,
             ac: None,
+            ac_reporter: None,
+            tx_ac,
+            ac_end_reason: None,
             lr: Default::default(),
             login_scope: None,
             peer_argb: 0u32,
@@ -1066,6 +1074,11 @@ impl Connection {
                         break;
                     }
                 },
+                Some(hb) = rx_ac.recv() => {
+                    if !conn.velour_on_heartbeat(hb).await {
+                        break;
+                    }
+                }
                 Some(data) = rx_from_authed.recv() => {
                     match data {
                         #[cfg(all(target_os = "windows", feature = "flutter"))]
@@ -1848,6 +1861,7 @@ impl Connection {
             self.lr.clone(),
             self.ac.clone(),
         ));
+        self.velour_start_reporting();
         self.session_last_recv_time = SESSIONS
             .lock()
             .unwrap()
@@ -2327,10 +2341,97 @@ impl Connection {
                 message,
             } => {
                 log::info!("access control: denied peer {} ({reason_code})", lr_my_id);
+                crate::access_control::events::report_denied(
+                    std::sync::Arc::new(backend),
+                    Config::get_id(),
+                    crate::common::hostname(),
+                    lr_my_id,
+                    self.lr.my_name.clone(),
+                    req.conn_type,
+                    reason_code,
+                    message.clone(),
+                );
                 self.send_login_error(message).await;
                 sleep(1.).await;
                 false
             }
+        }
+    }
+
+    /// RustDesk-Velour: begins `session_start` + heartbeats for an approved
+    /// connection (plan §3.3). No-op without an approved session.
+    fn velour_start_reporting(&mut self) {
+        use crate::access_control::{
+            backend::{AccessBackend, HttpBackend},
+            events::{SessionInfo, SessionReporter},
+            AcConfig,
+        };
+        let Some(session) = self.ac.clone() else {
+            return;
+        };
+        let cfg = AcConfig::load();
+        if !cfg.is_configured() {
+            return;
+        }
+        let backend: std::sync::Arc<dyn AccessBackend> =
+            std::sync::Arc::new(HttpBackend::new(&cfg.api_url, &cfg.api_key));
+        let info = SessionInfo {
+            device_id: Config::get_id(),
+            device_name: crate::common::hostname(),
+            peer_id: self.lr.my_id.clone(),
+            peer_name: self.lr.my_name.clone(),
+            conn_type: VelourLoginFields::from(&self.lr).conn_type,
+            session,
+            started_at: std::time::SystemTime::now(),
+        };
+        self.ac_reporter = Some(SessionReporter::start(
+            backend,
+            info,
+            std::time::Duration::from_secs(cfg.heartbeat_secs),
+            std::sync::Arc::new(|| AcConfig::load().enabled),
+            self.tx_ac.clone(),
+        ));
+    }
+
+    /// RustDesk-Velour: applies a heartbeat answer. Returns false when the
+    /// backend ended the session and the loop must exit.
+    async fn velour_on_heartbeat(
+        &mut self,
+        hb: crate::access_control::events::HeartbeatResult,
+    ) -> bool {
+        use crate::access_control::events::HeartbeatResult;
+        match hb {
+            HeartbeatResult::Continue { remaining_seconds } => {
+                if let Some(ac) = self.ac.as_mut() {
+                    ac.remaining_seconds = remaining_seconds;
+                }
+                true
+            }
+            HeartbeatResult::Stop { reason } => {
+                log::info!("access control: backend ended session: {reason}");
+                self.ac_end_reason = Some("backend_stop");
+                // The prefix keeps the peer from auto-reconnecting (see check_if_retry).
+                self.send_close_reason_no_retry(&format!("Access control: {reason}"))
+                    .await;
+                self.on_close("access control stop", true).await;
+                false
+            }
+            HeartbeatResult::Disabled => {
+                self.ac_reporter = None;
+                true
+            }
+        }
+    }
+
+    /// RustDesk-Velour: sends `session_end` once, on whatever path closed
+    /// the connection.
+    fn velour_end_reporting(&mut self, close_reason: &str) {
+        if let Some(reporter) = self.ac_reporter.take() {
+            let reason = self
+                .ac_end_reason
+                .take()
+                .unwrap_or_else(|| crate::access_control::events::end_reason(close_reason));
+            reporter.end(reason, close_reason);
         }
     }
 
@@ -5236,6 +5337,7 @@ impl Connection {
             return;
         }
         self.closed = true;
+        self.velour_end_reporting(reason);
         // If voice A,B -> C, and A,B has voice call
         // B disconnects, C will reset the voice call input.
         //

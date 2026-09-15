@@ -404,7 +404,7 @@ permission toggles. Single-machine smoke test (connect to own ID) passed for
 wrong token, valid token, backend down + cache, no token, switch off — see
 `TEST_LOG.md`.
 
-### WP3 — Session events and heartbeat ☐
+### WP3 — Session events and heartbeat ☑ (2026-09-15)
 
 **Goal:** the backend learns about every session, live, and can end one.
 
@@ -438,6 +438,18 @@ Tests (Rust, `MockBackend` + `tokio::time::pause`):
 
 Manual: mock backend prints events; watch a session start, heartbeat, and end;
 flip "stop" in the mock and confirm the peer sees the reason.
+
+Implementation notes (as built): `access_control::events::SessionReporter`
+owns one tokio task per connection (start with retry, heartbeat loop, switch
+polling); results reach the connection through a dedicated channel
+(`tx_ac`/`rx_ac`) and a new `select!` arm, so `src/ipc.rs` is untouched.
+Hooks in `connection.rs`: `velour_start_reporting()` after
+`AuthedConnID::new`, `velour_on_heartbeat()` in the loop,
+`velour_end_reporting()` first thing in `on_close()`. Backend stop reasons
+are sent to the peer as "Access control: <reason>" and `check_if_retry` in
+`src/client.rs` excludes that prefix, otherwise the peer auto-reconnects.
+`session_start`/`session_end` retry 8 times with doubling backoff from 2 s
+(≈4 min). 8 unit tests with paused tokio time; live self-connect test passed.
 
 ### WP4 — Countdown and elapsed time UI ☐
 

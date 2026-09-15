@@ -14,6 +14,9 @@
 | 2026-09-14 | WP2c (pre-commit) | WP2 | Switch off → no access-control activity, backend not called | pass |
 | 2026-09-15 | 2bdee5b22+ | WP2 | Self-connect via UI with `tok-admin` after mock restart → allowed, password prompt | pass (user); screen image blank — Screen Recording permission not granted to the debug app, unrelated |
 | 2026-09-15 | 2bdee5b22+ | WP2 | Stale mock (users file edited after start) gave `invalid_token` | root cause found; mock now reloads the file on change |
+| 2026-09-15 | WP3 (pre-commit) | WP3 | Self-connect, heartbeat 5 s: `session_start`, heartbeats with elapsed 5/10/15…, `continue:true` | pass (mock log) |
+| 2026-09-15 | WP3 (pre-commit) | WP3 | `POST /mock/stop/<sid>` → next heartbeat `continue:false` → device closes, `session_end` reason `backend_stop`, peer shown "Access control: …" | pass |
+| 2026-09-15 | WP3 (pre-commit) | WP3 | Peer must not auto-reconnect after a backend stop (found reconnect; fixed via reason prefix + `check_if_retry`) | pass after fix |
 | — | — | WP2 | Two-machine matrix (user/manager/user-blocked, stock peer, stock device) | pending — user will test from a Windows machine |
 
 Single-machine method: run `python3 -u docs/access-control/mock_backend.py --port 8787 --users <file>`

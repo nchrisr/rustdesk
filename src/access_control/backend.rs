@@ -141,12 +141,15 @@ pub mod mock {
     use std::sync::Mutex;
 
     /// Scripted backend: pops one outcome per `authorize`, records requests.
+    /// `post_event` fails while `fail_events` > 0 (decremented per call),
+    /// then pops `event_responses` (default response when empty).
     #[derive(Default)]
     pub struct MockBackend {
         pub outcomes: Mutex<VecDeque<AuthorizeOutcome>>,
         pub requests: Mutex<Vec<AuthorizeRequest>>,
         pub events: Mutex<Vec<Value>>,
-        pub event_response: Mutex<Option<EventResponse>>,
+        pub event_responses: Mutex<VecDeque<EventResponse>>,
+        pub fail_events: Mutex<u32>,
     }
 
     impl MockBackend {
@@ -173,11 +176,20 @@ pub mod mock {
 
         async fn post_event(&self, body: &Value) -> ResultType<EventResponse> {
             self.events.lock().unwrap().push(body.clone());
+            {
+                let mut fails = self.fail_events.lock().unwrap();
+                if *fails > 0 {
+                    if *fails != u32::MAX {
+                        *fails -= 1;
+                    }
+                    hbb_common::bail!("mock: injected failure");
+                }
+            }
             Ok(self
-                .event_response
+                .event_responses
                 .lock()
                 .unwrap()
-                .clone()
+                .pop_front()
                 .unwrap_or_default())
         }
     }
