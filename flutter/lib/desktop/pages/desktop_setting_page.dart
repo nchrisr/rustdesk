@@ -2699,7 +2699,7 @@ class _AboutState extends State<_About> {
               ),
               SelectionArea(
                   child: Text(
-                          '${translate('Edition')}: ${bind.mainGetEditionNameSync()}')
+                          '${translate('Edition')}: ${bind.mainGetEditionVersionSync()}')
                       .marginSymmetric(vertical: 4.0)),
               SelectionArea(
                   child: Text('${translate('Version')}: $version')

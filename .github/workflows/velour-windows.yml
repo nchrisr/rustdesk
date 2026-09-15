@@ -2,7 +2,7 @@
 # Windows toolchain is needed locally. Mirrors the x64 leg of
 # build-for-windows-flutter in flutter-build.yml, minus signing and the
 # optional printer/virtual-display extras. Run it from the Actions tab
-# ("Run workflow"); the result is the artifact "RustDesk_Velour-windows-x64",
+# ("Run workflow"); the result is the artifact "RustDesk_Velour-<version>-windows-x64",
 # a zip containing the portable app folder "RustDesk_Velour" (the program
 # inside stays rustdesk.exe: config paths and the service are keyed on it).
 name: Velour Windows build
@@ -116,8 +116,13 @@ jobs:
           name: topmostwindow-artifacts-x64
           path: "./RustDesk_Velour"
 
+      - name: Read Velour version
+        id: velour
+        shell: bash
+        run: echo "version=$(grep -oE 'VELOUR_VERSION: &str = "[^"]+"' src/common.rs | grep -oE '[0-9][^"]*')" >> "$GITHUB_OUTPUT"
+
       - name: Upload app folder
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: RustDesk_Velour-windows-x64
+          name: RustDesk_Velour-${{ steps.velour.outputs.version }}-windows-x64
           path: RustDesk_Velour

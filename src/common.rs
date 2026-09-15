@@ -1068,6 +1068,17 @@ pub fn get_app_name() -> String {
 /// paths, IPC socket names and platform services key off and must stay stable.
 pub const EDITION_NAME: &str = "Velour";
 
+/// Velour's own release number, independent of the RustDesk version it is
+/// built on (which peers exchange and gate features on). Bump by hand for
+/// each Velour release; the RustDesk version keeps tracking upstream.
+pub const VELOUR_VERSION: &str = "0.1";
+
+/// "RustDesk-Velour 0.1" — for the About page and deliverable names.
+#[inline]
+pub fn get_edition_version() -> String {
+    format!("{} {}", get_edition_name(), VELOUR_VERSION)
+}
+
 /// Display name of this build, e.g. "RustDesk-Velour". UI only; never used for
 /// paths or service names.
 #[inline]
@@ -2840,6 +2851,7 @@ mod tests {
         // service names read APP_NAME and must not see "Velour".
         assert_eq!(get_edition_name(), format!("{}-Velour", get_app_name()));
         assert_eq!(get_app_name(), "RustDesk");
+        assert_eq!(get_edition_version(), format!("RustDesk-Velour {VELOUR_VERSION}"));
     }
 
     #[inline]

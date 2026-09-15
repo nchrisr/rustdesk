@@ -1091,6 +1091,10 @@ pub fn main_get_edition_name_sync() -> SyncReturn<String> {
     SyncReturn(crate::get_edition_name())
 }
 
+pub fn main_get_edition_version_sync() -> SyncReturn<String> {
+    SyncReturn(crate::get_edition_version())
+}
+
 /// RustDesk-Velour: active sessions from the access-control backend, as the
 /// spec's JSON, or `{"error": "..."}`.
 pub fn main_velour_active_sessions() -> String {
