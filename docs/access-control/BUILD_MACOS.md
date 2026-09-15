@@ -87,6 +87,14 @@ Order matters after touching `src/flutter_ffi.rs`: run the codegen **before**
 `cargo build`, or the dylib lacks the new `wire_*` symbols and Xcode's link
 step fails with "Undefined symbols".
 
+The Xcode project *embeds* `target/release/liblibrustdesk.dylib` into the
+bundle while a Debug build *links* against `target/debug/`; at runtime the
+Debug app loads the debug dylib by its absolute path, so the embedded copy
+is dead weight — unless the bundle is moved elsewhere or the `target/`
+folder is missing, when the (possibly stale) embedded release dylib gets
+loaded instead. Ship only release builds (`build.py --flutter` / `flutter
+build macos --release` after `cargo build --release`).
+
 ## Build and run
 
 Day-to-day development loop (debug profile on both sides):

@@ -11,6 +11,8 @@ Standard library only. Runs on one machine and serves the whole LAN.
   python3 test_backend.py assign USER DEVICE_ID      manager/user may reach that device
   python3 test_backend.py schedule USER --days mon-fri --from 09:00 --to 17:00 [--device ID]
   python3 test_backend.py quota USER --period day|week|month --hours 2 [--device ID]
+  python3 test_backend.py clear-quota USER [--device ID]   remove quota rows
+  python3 test_backend.py reset-usage USER           forget ended sessions (usage back to 0)
   python3 test_backend.py list                       everything, at a glance
   python3 test_backend.py serve [--port 8787] [--db velour_test.db]
 
@@ -510,6 +512,27 @@ def cmd_quota(a):
     print(f"{a.user}: {a.hours} h per {a.period} on {a.device or 'all devices (default)'}")
 
 
+def cmd_clear_quota(a):
+    """Removes a user's quota rows (all devices, or one)."""
+    with db() as conn:
+        u = user_by_name(conn, a.user)
+        if a.device:
+            d = device_by_remote(conn, a.device, a.app) or sys.exit("no such device")
+            conn.execute("DELETE FROM quotas WHERE user_id=? AND device_id=?", (u["id"], d["id"]))
+        else:
+            conn.execute("DELETE FROM quotas WHERE user_id=?", (u["id"],))
+    print(f"quotas cleared for {a.user} on {a.device or 'all devices'}")
+
+
+def cmd_reset_usage(a):
+    """Forgets a user's ended sessions so quota usage starts from zero.
+    Live sessions are kept."""
+    with db() as conn:
+        u = user_by_name(conn, a.user)
+        n = conn.execute("DELETE FROM sessions WHERE user_id=? AND status='ended'", (u["id"],)).rowcount
+    print(f"{n} ended session(s) forgotten for {a.user}; usage is now 0")
+
+
 def cmd_list(a):
     with db() as conn:
         print("USERS"); [print(" ", dict(r)) for r in conn.execute("SELECT u.id,u.name,u.role,u.timezone,u.active, (SELECT GROUP_CONCAT(app||':'||remote_id) FROM user_remote_ids WHERE user_id=u.id) AS ids FROM users u")]
@@ -550,6 +573,8 @@ def main():
     x.add_argument("--from", dest="frm", required=True); x.add_argument("--to", required=True); x.add_argument("--device"); x.add_argument("--app", default="rustdesk"); x.set_defaults(f=cmd_schedule)
     x = sp.add_parser("quota"); x.add_argument("user"); x.add_argument("--period", required=True, choices=["day", "week", "month"])
     x.add_argument("--hours", type=float, required=True); x.add_argument("--device"); x.add_argument("--app", default="rustdesk"); x.set_defaults(f=cmd_quota)
+    x = sp.add_parser("clear-quota"); x.add_argument("user"); x.add_argument("--device"); x.add_argument("--app", default="rustdesk"); x.set_defaults(f=cmd_clear_quota)
+    x = sp.add_parser("reset-usage"); x.add_argument("user"); x.set_defaults(f=cmd_reset_usage)
     sp.add_parser("list").set_defaults(f=cmd_list)
     x = sp.add_parser("serve"); x.add_argument("--port", type=int, default=8787); x.set_defaults(f=cmd_serve)
     a = p.parse_args()

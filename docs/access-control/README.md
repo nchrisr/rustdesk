@@ -5,6 +5,8 @@
 * `EXTERNAL_SYSTEM_SPEC.md` — API contract the external backend must implement.
   Hand this to whoever builds the backend; it is self-contained.
 * `BUILD_MACOS.md` — building and running the fork on this Mac.
+* `USER_SETUP_GUIDE.md` — for end users: install (Windows/macOS), macOS
+  permissions, audio off, Access Control settings. No terminal.
 * `WINDOWS_TEST_GUIDE.md` — getting a Windows build from GitHub Actions,
   installing it, and the two-machine test scenarios.
 * `TEST_LOG.md` — manual test results.

@@ -21,6 +21,9 @@
 | 2026-09-15 | WP4 (pre-commit) | WP4 | Remaining set to 9 min → badge red, milestone toast | pass (user) |
 | 2026-09-15 | WP5 (pre-commit) | WP5 | Monitor tab opens, lists the backend's active session, Watch adds a tile | pass (user) |
 | 2026-09-15 | WP5 (pre-commit) | WP5 | Tile logs in as `monitoring: true` | not testable alone — same app already held a session to that peer, tile joined it (see plan) |
+| 2026-09-15 | 2a63c3751 (Win CI) / debug Mac | WP2–4 | Windows PC (Uma, user) → Mac: allowed with remaining 900 s, Time left badge, CM shows Uma · user; quota exhausted → refused `quota_exhausted` | pass (user) |
+| 2026-09-15 | — | — | Windows → Mac: screen visible but no control — macOS Accessibility/Input Monitoring grant for the debug app (launched from Terminal); fixed by re-adding the grants and launching via `open` | resolved |
+| 2026-09-15 | — | — | Unwanted audio: Settings → Security → Permissions → Enable audio off | resolved |
 | — | — | WP5 | Wall from a second (admin) machine: monitoring flag, view-only, 6-tile limit | pending |
 | — | — | WP2 | Two-machine matrix (user/manager/user-blocked, stock peer, stock device) | pending — user will test from a Windows machine |
 
