@@ -10,7 +10,11 @@
 // WP1 only adds settings; the consumers arrive in WP2/WP3. Remove then.
 #![allow(dead_code)]
 
+pub mod backend;
+pub mod cache;
 pub mod config;
+pub mod policy;
+pub mod types;
 
 pub use config::AcConfig;
 

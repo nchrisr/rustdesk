@@ -1,0 +1,42 @@
+{
+  "_comment": "Edit remote_id values to the real RustDesk IDs of your test machines. device_api_keys are what you paste into Settings > Access Control > Device API key. tokens are what each connecting person pastes as Personal token.",
+  "device_api_keys": ["dev-key-1"],
+  "users_require_assignment": true,
+  "devices": [],
+  "users": [
+    {
+      "id": "u_admin",
+      "name": "Alice Admin",
+      "role": "admin",
+      "token": "tok-admin",
+      "remote_ids": [{"app": "rustdesk", "remote_id": "111111111"}]
+    },
+    {
+      "id": "u_mgr",
+      "name": "Mia Manager",
+      "role": "manager",
+      "token": "tok-manager",
+      "assigned_devices": ["999999999"],
+      "remaining_seconds": 5400,
+      "remote_ids": [{"app": "rustdesk", "remote_id": "222222222"}]
+    },
+    {
+      "id": "u_user",
+      "name": "Uma User",
+      "role": "user",
+      "token": "tok-user",
+      "assigned_devices": ["999999999"],
+      "remaining_seconds": 900,
+      "remote_ids": [{"app": "rustdesk", "remote_id": "333333333"}]
+    },
+    {
+      "id": "u_inactive",
+      "name": "Ivan Inactive",
+      "role": "user",
+      "active": false,
+      "token": "tok-inactive",
+      "assigned_devices": ["999999999"],
+      "remote_ids": [{"app": "rustdesk", "remote_id": "444444444"}]
+    }
+  ]
+}
