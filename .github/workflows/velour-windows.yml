@@ -2,8 +2,9 @@
 # Windows toolchain is needed locally. Mirrors the x64 leg of
 # build-for-windows-flutter in flutter-build.yml, minus signing and the
 # optional printer/virtual-display extras. Run it from the Actions tab
-# ("Run workflow"); the result is the artifact "rustdesk-velour-windows-x64",
-# a zip of the portable app folder.
+# ("Run workflow"); the result is the artifact "RustDesk_Velour-windows-x64",
+# a zip containing the portable app folder "RustDesk_Velour" (the program
+# inside stays rustdesk.exe: config paths and the service are keyed on it).
 name: Velour Windows build
 
 on:
@@ -107,16 +108,16 @@ jobs:
       - name: Build rustdesk
         run: |
           python3 .\build.py --portable --flutter --skip-portable-pack --hwcodec --vram
-          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
+          mv ./flutter/build/windows/x64/runner/Release ./RustDesk_Velour
 
       - name: Download RustDeskTempTopMostWindow artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: topmostwindow-artifacts-x64
-          path: "./rustdesk"
+          path: "./RustDesk_Velour"
 
       - name: Upload app folder
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rustdesk-velour-windows-x64
-          path: rustdesk
+          name: RustDesk_Velour-windows-x64
+          path: RustDesk_Velour
