@@ -564,6 +564,17 @@ option / `RENDEZVOUS_SERVER` env). Not scheduled.
 * The web client (`flutter/web`) is out of scope.
 * Sciter (legacy) UI is out of scope.
 
+## 9b. Post-release follow-ups (agreed 2026-09-15)
+
+* **Intel Mac build**: add a macOS x86_64 job (`macos-13` runner) to
+  `.github/workflows/velour-windows.yml` (rename to `velour-release.yml`),
+  mirroring upstream's `build-for-macOS` steps without signing; artifact
+  `RustDesk_Velour-<version>-macos-x64`. After the 0.1 retest.
+* **Velour 1.0**: bump `VELOUR_VERSION` when the user is satisfied with 0.1.
+* Code signing / notarization (optional; removes the "Run anyway" and
+  right-click → Open steps).
+* Real backend per `EXTERNAL_SYSTEM_SPEC.md`; HTTPS.
+
 ## 10. How to resume this work later
 
 1. Read this file, then `EXTERNAL_SYSTEM_SPEC.md`.
