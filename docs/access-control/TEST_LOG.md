@@ -12,7 +12,9 @@
 | 2026-09-14 | WP2c (pre-commit) | WP2 | Backend 503, cached approval, same token → allowed `[offline cache]` | pass |
 | 2026-09-14 | WP2c (pre-commit) | WP2 | No token → denied `no_token`, backend not called | pass |
 | 2026-09-14 | WP2c (pre-commit) | WP2 | Switch off → no access-control activity, backend not called | pass |
-| — | — | WP2 | Two-machine matrix (user/manager/user-blocked, stock peer, stock device) | pending |
+| 2026-09-15 | 2bdee5b22+ | WP2 | Self-connect via UI with `tok-admin` after mock restart → allowed, password prompt | pass (user); screen image blank — Screen Recording permission not granted to the debug app, unrelated |
+| 2026-09-15 | 2bdee5b22+ | WP2 | Stale mock (users file edited after start) gave `invalid_token` | root cause found; mock now reloads the file on change |
+| — | — | WP2 | Two-machine matrix (user/manager/user-blocked, stock peer, stock device) | pending — user will test from a Windows machine |
 
 Single-machine method: run `python3 -u docs/access-control/mock_backend.py --port 8787 --users <file>`
 with the Mac's own ID registered; launch the debug app with `RUST_LOG=info` and

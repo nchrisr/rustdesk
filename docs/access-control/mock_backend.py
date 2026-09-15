@@ -16,12 +16,13 @@ Test controls (no auth):
   GET  /mock/state            -> dump users, sessions, flags
 
 Run:  python3 -u mock_backend.py [--port 8787] [--users mock_users.json]
-Every request is printed. Point a device's Backend URL at
+Every request is printed. The users file is re-read whenever it changes. Point a device's Backend URL at
 http://<this machine>:<port> and set its Device API key to one of the keys in
 mock_users.json. Plain HTTP is fine for local testing only.
 """
 import argparse
 import json
+import os
 import sys
 import time
 import uuid
@@ -43,6 +44,10 @@ STATE = {
 def load_users(path):
     with open(path) as f:
         data = json.load(f)
+    STATE["users_path"] = path
+    STATE["users_mtime"] = os.path.getmtime(path)
+    STATE["users"].clear()
+    STATE["devices"].clear()
     STATE["device_keys"] = set(data.get("device_api_keys", []))
     STATE["users_require_assignment"] = data.get("users_require_assignment", True)
     for d in data.get("devices", []):
@@ -89,7 +94,19 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     # ---- routing -------------------------------------------------------
+    def reload_users_if_changed(self):
+        """Re-read the users file when it was edited, so a running mock never
+        serves a stale copy of an edit made after start-up."""
+        path = STATE.get("users_path")
+        try:
+            if path and os.path.getmtime(path) != STATE.get("users_mtime"):
+                load_users(path)
+                print(f"  (reloaded {path}: {len(STATE['users'])} ids)")
+        except (OSError, ValueError) as e:
+            print(f"  (users file not reloaded: {e})")
+
     def do_POST(self):
+        self.reload_users_if_changed()
         b = self.body()
         print(f"\n[{time.strftime('%H:%M:%S')}] POST {self.path} {json.dumps(b)}")
         if self.path.startswith("/mock/"):
@@ -105,6 +122,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send(404, {"error": "no_such_route"})
 
     def do_GET(self):
+        self.reload_users_if_changed()
         print(f"\n[{time.strftime('%H:%M:%S')}] GET {self.path}")
         if self.path == "/mock/state":
             return self.send(200, {

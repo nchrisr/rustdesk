@@ -2573,6 +2573,7 @@ Widget _accessTextOption(
   final controller = TextEditingController(text: current);
   final applyEnabled = false.obs;
   final error = ''.obs;
+  final hidden = obscure.obs;
   final isOptFixed = !isLocal && isOptionFixed(key);
   final usable = enabled && !isOptFixed;
 
@@ -2594,24 +2595,36 @@ Widget _accessTextOption(
               color: disabledTextColor(context, usable))),
       Row(children: [
         Expanded(
-          child: TextField(
-            controller: controller,
-            enabled: usable,
-            obscureText: obscure,
-            onChanged: (v) {
-              applyEnabled.value = true;
-              error.value = validate(v.trim()) ?? '';
-            },
-            inputFormatters: numeric
-                ? [FilteringTextInputFormatter.allow(RegExp(r'^\d{0,6}$'))]
-                : null,
-            decoration: InputDecoration(
-              hintText: hint,
-              isDense: true,
-              contentPadding:
-                  const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            ),
-          ).workaroundFreezeLinuxMint(),
+          child: Obx(() => TextField(
+                controller: controller,
+                enabled: usable,
+                obscureText: hidden.value,
+                onChanged: (v) {
+                  applyEnabled.value = true;
+                  error.value = validate(v.trim()) ?? '';
+                },
+                inputFormatters: numeric
+                    ? [FilteringTextInputFormatter.allow(RegExp(r'^\d{0,6}$'))]
+                    : null,
+                decoration: InputDecoration(
+                  hintText: hint,
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                  suffixIcon: obscure
+                      ? IconButton(
+                          tooltip: translate(
+                              hidden.value ? 'Show' : 'Hide'),
+                          icon: Icon(
+                              hidden.value
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              size: 18),
+                          onPressed: () => hidden.value = !hidden.value,
+                        )
+                      : null,
+                ),
+              ).workaroundFreezeLinuxMint()),
         ),
         const SizedBox(width: 10),
         Obx(() => ElevatedButton(
