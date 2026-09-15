@@ -64,3 +64,4 @@ docs/access-control/velour_test.db
 docs/access-control/velour_test.db-journal
 docs/access-control/velour_test.db-wal
 docs/access-control/velour_test.db-shm
+dist/
