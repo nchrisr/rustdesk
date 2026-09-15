@@ -276,7 +276,7 @@ Do them in this order; each is independently shippable and testable. Each WP
 ends with: automated tests passing, manual test steps executed by the user,
 and a short plain-language summary of the change.
 
-### WP0 — Branding: RustDesk-Velour ☐
+### WP0 — Branding: RustDesk-Velour ☑ (2026-09-14)
 
 **Goal:** the user can tell this build from stock RustDesk at a glance, without
 breaking anything that keys off the app name.
@@ -298,9 +298,11 @@ Changes:
    page header next to the ID card.
 4. `src/lang/en.rs`: add `"About RustDesk-Velour"`.
 
-Tests: Rust unit test for `get_edition_name()`; Flutter widget test that the
-About page contains "RustDesk-Velour". Manual: open Settings → About, check
-title and window title.
+Tests: Rust unit test for `get_edition_name()`. Manual: Settings → About and
+the home-screen tag (verified by the user 2026-09-14). Note: on macOS the main
+window has a custom tab bar rather than a native title, so the edition name
+shows only on session windows there; the name beside the Apple menu is the
+bundle name and intentionally stays "RustDesk".
 
 ### WP1 — Master switch, settings UI, config keys ☐
 

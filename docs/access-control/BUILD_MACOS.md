@@ -20,9 +20,13 @@ Read these first; they explain choices below.
    patches that the project only applies for Windows arm64. A dedicated
    checkout lives in `~/flutter-3.24.5` and is put first on `PATH` when
    building; the system Flutter is untouched.
-3. The Xcode project links `target/release/liblibrustdesk.dylib`, so the app
-   needs a **release** Rust build. `cargo test` uses the debug profile, so
-   both profiles get built over time (~10–20 min each the first time).
+3. The Xcode project's Debug configuration links `target/debug/` and its
+   Release configuration links `target/release/` (see `LIBRARY_SEARCH_PATHS`
+   in `flutter/macos/Runner.xcodeproj/project.pbxproj`). So after a Rust
+   change, rebuild the Rust library in the **same profile** as the Flutter
+   build you are about to run, or Xcode links a stale dylib and fails with
+   "Undefined symbols: _wire_...". `cargo test` builds a separate test binary
+   and does not refresh either dylib.
 4. If rust-analyzer (VS Code / Cursor Rust extension) is active on this
    folder it runs its own `cargo check` and fights the build for the target
    directory lock. Disable it for this workspace, or expect slower builds.
@@ -81,22 +85,32 @@ cp flutter/macos/Runner/bridge_generated.h flutter/ios/Runner/bridge_generated.h
 
 ## Build and run
 
-```sh
-# Rust library the app embeds (release, because Xcode links target/release/).
-# First build ~18 min; incremental rebuilds are much faster.
-cargo build --features flutter --lib --release
+Day-to-day development loop (debug profile on both sides):
 
-# Desktop app. FLUTTER_XCODE_ARCHS keeps Xcode single-arch to match the dylib.
+```sh
+cargo build --features flutter --lib                 # -> target/debug/liblibrustdesk.dylib
 cd flutter
 FLUTTER_XCODE_ARCHS=arm64 FLUTTER_XCODE_ONLY_ACTIVE_ARCH=YES flutter build macos --debug
 open build/macos/Build/Products/Debug/RustDesk.app
-
-# Alternative for iterating on Dart code with hot reload:
+# or, for Dart hot reload:
 FLUTTER_XCODE_ARCHS=arm64 FLUTTER_XCODE_ONLY_ACTIVE_ARCH=YES flutter run -d macos
 ```
 
-Timings measured on the M1 Pro (first build): vcpkg ~20 min, cargo debug
-6 min 54 s, cargo release 18 min 14 s, `flutter build macos --debug` ~3 min.
+Release build (what `build.py --flutter` does; first Rust release build ~18 min):
+
+```sh
+cargo build --features flutter --lib --release       # -> target/release/liblibrustdesk.dylib
+cd flutter
+FLUTTER_XCODE_ARCHS=arm64 FLUTTER_XCODE_ONLY_ACTIVE_ARCH=YES flutter build macos --release
+```
+
+`FLUTTER_XCODE_ARCHS=arm64` keeps Xcode single-arch to match the dylib. If the
+link step complains about a symbol you just added, `rm -rf flutter/build/macos`
+and confirm `nm -gU target/<profile>/liblibrustdesk.dylib | grep <name>`.
+
+Timings measured on the M1 Pro: vcpkg ~20 min; first cargo debug 6 min 54 s,
+first cargo release 18 min 14 s; incremental cargo rebuild after a one-file
+change 15 s (debug) / 2 min (release); `flutter build macos --debug` ~3 min.
 
 Note: `flutter pub get` rewrites `flutter/pubspec.lock`; CI regenerates it on
 every build, so leave that change uncommitted.
