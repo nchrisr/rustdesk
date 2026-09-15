@@ -1091,6 +1091,40 @@ pub fn main_get_edition_name_sync() -> SyncReturn<String> {
     SyncReturn(crate::get_edition_name())
 }
 
+/// RustDesk-Velour: active sessions from the access-control backend, as the
+/// spec's JSON, or `{"error": "..."}`.
+pub fn main_velour_active_sessions() -> String {
+    use crate::access_control::backend::list_active_sessions_blocking;
+    let url = config::Config::get_option(keys::OPTION_ACCESS_API_URL);
+    let token = LocalConfig::get_option(keys::OPTION_ACCESS_TOKEN);
+    if url.trim().is_empty() {
+        return r#"{"error":"Set the backend URL in Settings > Access Control."}"#.to_owned();
+    }
+    if token.trim().is_empty() {
+        return r#"{"error":"Set your personal token in Settings > Access Control."}"#.to_owned();
+    }
+    match list_active_sessions_blocking(url.trim(), token.trim()) {
+        Ok(json) => json,
+        Err(e) => serde_json::json!({ "error": e.to_string() }).to_string(),
+    }
+}
+
+/// RustDesk-Velour: marks a session as an admin monitor-wall tile before it
+/// logs in (view-only is enforced by the device).
+pub fn session_set_monitoring_sync(session_id: SessionID, value: bool) -> SyncReturn<bool> {
+    match sessions::get_session_by_session_id(&session_id) {
+        Some(session) => {
+            session.lc.write().unwrap().monitoring = value;
+            log::info!("access control: session {session_id} monitoring = {value}");
+            SyncReturn(true)
+        }
+        None => {
+            log::warn!("access control: session {session_id} not found for monitoring flag");
+            SyncReturn(false)
+        }
+    }
+}
+
 pub fn main_uri_prefix_sync() -> SyncReturn<String> {
     SyncReturn(crate::get_uri_prefix())
 }

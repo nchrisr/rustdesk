@@ -243,6 +243,19 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                                       ?.withOpacity(0.5)),
                             ),
                             buildEditionTag(context).marginOnly(left: 8),
+                            if (bind
+                                .mainGetLocalOption(key: kOptionAccessToken)
+                                .trim()
+                                .isNotEmpty)
+                              Tooltip(
+                                message: translate('Monitor sessions'),
+                                child: InkWell(
+                                  onTap: DesktopTabPage.onAddMonitorWall,
+                                  child: Icon(Icons.grid_view_outlined,
+                                          size: 16, color: MyTheme.accent)
+                                      .marginOnly(left: 8),
+                                ),
+                              ),
                           ],
                         ).marginOnly(top: 5),
                         buildPopupMenu(context)

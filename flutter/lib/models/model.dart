@@ -3834,6 +3834,7 @@ class FFI {
     int? tabWindowId,
     int? display,
     List<int>? displays,
+    bool monitoring = false,
   }) {
     closed = false;
     if (isMobile) mobileReset();
@@ -3880,6 +3881,9 @@ class FFI {
         isSharedPassword: isSharedPassword ?? false,
         connToken: connToken,
       );
+      if (monitoring) {
+        bind.sessionSetMonitoringSync(sessionId: sessionId, value: true);
+      }
     } else if (display != null) {
       if (displays == null) {
         debugPrint(

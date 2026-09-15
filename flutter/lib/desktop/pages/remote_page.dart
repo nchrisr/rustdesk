@@ -47,9 +47,13 @@ class RemotePage extends StatefulWidget {
     this.switchUuid,
     this.forceRelay,
     this.isSharedPassword,
+    this.monitoring = false,
   }) : super(key: key) {
     initSharedStates(id);
   }
+
+  /// RustDesk-Velour: an admin monitor-wall tile (view-only on the device).
+  final bool monitoring;
 
   final String id;
   final SessionID? sessionId;
@@ -174,6 +178,7 @@ class _RemotePageState extends State<RemotePage>
       tabWindowId: widget.tabWindowId,
       display: widget.display,
       displays: widget.displays,
+      monitoring: widget.monitoring,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);

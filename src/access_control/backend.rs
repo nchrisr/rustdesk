@@ -83,6 +83,27 @@ impl AccessBackend for HttpBackend {
     }
 }
 
+/// `GET /v1/sessions/active` as an admin (spec §4.3), for the monitor wall.
+/// Blocking: called from the Flutter FFI thread pool, never from tokio.
+pub fn list_active_sessions_blocking(base_url: &str, personal_token: &str) -> ResultType<String> {
+    let url = format!("{}/v1/sessions/active", base_url.trim_end_matches('/'));
+    let client = crate::hbbs_http::create_http_client_with_url(&url);
+    let resp = client
+        .get(&url)
+        .timeout(Duration::from_secs(ACCESS_HTTP_TIMEOUT_SECS))
+        .bearer_auth(personal_token)
+        .send()?;
+    let status = resp.status().as_u16();
+    let text = resp.text()?;
+    if status == 401 {
+        hbb_common::bail!("The backend rejected your personal token (admin required).");
+    }
+    if !(200..300).contains(&status) {
+        hbb_common::bail!("Backend returned {status}.");
+    }
+    Ok(text)
+}
+
 /// Maps an HTTP status + body to an outcome (spec §4.1). Pure, so the mapping
 /// is unit-tested without a server.
 pub fn parse_authorize_response(status: u16, body: &str) -> AuthorizeOutcome {

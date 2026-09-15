@@ -83,6 +83,10 @@ cd <repo>/flutter && flutter pub get && cd ..
 cp flutter/macos/Runner/bridge_generated.h flutter/ios/Runner/bridge_generated.h
 ```
 
+Order matters after touching `src/flutter_ffi.rs`: run the codegen **before**
+`cargo build`, or the dylib lacks the new `wire_*` symbols and Xcode's link
+step fails with "Undefined symbols".
+
 ## Build and run
 
 Day-to-day development loop (debug profile on both sides):

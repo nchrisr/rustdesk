@@ -492,7 +492,7 @@ badge top-right of the remote view. CM: `InvokeUiCM::velour_session`
 and "· Time left" beside the elapsed timer. Milestone toasts use
 `access-time-left-tip`. Deferred: the mobile remote-page overlay (item 5).
 
-### WP5 — Admin monitor wall ☐
+### WP5 — Admin monitor wall ☑ code complete (2026-09-15; live test needs a second machine)
 
 **Goal:** an admin sees up to 6 live sessions at once and can expand one.
 
@@ -515,6 +515,20 @@ devices; admin opens the wall, watches all three, tries a seventh with six
 open.
 
 Note: the wall does not exist on mobile.
+
+Implementation notes (as built): `MonitorWallPage` is a tab in the main
+window (`DesktopTabPage.onAddMonitorWall`, opened from a grid icon beside the
+Velour tag that appears only when a personal token is saved). Left: the
+backend's `/v1/sessions/active` via `main_velour_active_sessions()` (blocking
+reqwest on the FFI pool, admin token as Bearer). Right: up to
+`access-wall-max-tiles` `RemotePage` widgets with `monitoring: true`, which
+`FFI.start` applies through `session_set_monitoring_sync` right after
+`session_add_sync`; the device forces view-only. `WallTiles` (limit, dedup,
+grid columns) and `ActiveSession.parse` are pure Dart with 3 tests.
+Single-machine limitation: RustDesk keeps one connection per peer per
+process (`sessions::insert_session` → `or_insert`), so a tile for a device
+this same app already has open joins that session instead of logging in as
+monitoring. The live test therefore needs the admin on a second machine.
 
 ### WP6 — Own rendezvous/relay server ☐ (deferred)
 

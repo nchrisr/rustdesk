@@ -235,8 +235,14 @@ class Handler(BaseHTTPRequestHandler):
         admin = any(u.get("token") == tok and u.get("role") == "admin" for u in STATE["users"].values())
         if not admin:
             return self.send(401, {"error": "admin_token_required"})
-        live = [s for s in STATE["sessions"].values()
-                if s.get("status") in ("active", "stale") and not s.get("monitoring")]
+        names = {u["id"]: u["name"] for u in STATE["users"].values()}
+        live = []
+        for s in STATE["sessions"].values():
+            if s.get("status") in ("active", "stale") and not s.get("monitoring"):
+                row = dict(s)
+                row["display_name"] = names.get(s.get("user_id"), "")
+                row["remaining_seconds"] = STATE["remaining"].get(s.get("peer_id"))
+                live.append(row)
         self.send(200, {"sessions": live})
 
 

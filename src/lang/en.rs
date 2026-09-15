@@ -295,5 +295,15 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("access-time-left-tip", "Time left in this session: {}"),
         ("Time left", "Time left"),
         ("Elapsed", "Elapsed"),
+        ("Monitor sessions", "Monitor sessions"),
+        ("Active sessions", "Active sessions"),
+        ("No active sessions", "No active sessions"),
+        ("Watch", "Watch"),
+        ("Expand", "Expand"),
+        ("Back to grid", "Back to grid"),
+        ("tiles", "tiles"),
+        ("stale", "stale"),
+        ("wall-full-tip", "Close a tile to add another."),
+        ("wall-empty-tip", "Pick a session on the left and click Watch.\nTiles are view-only; the person connected can see you in their connection list."),
     ].iter().cloned().collect();
 }
