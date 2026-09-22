@@ -1,0 +1,321 @@
+# RustDesk-Velour: build the installable artifacts on GitHub's runners, on
+# demand only. Nothing here runs on a schedule.
+#
+# Actions tab -> "Velour release build" -> Run workflow -> pick what to build.
+# Artifacts, named with VELOUR_VERSION from src/common.rs:
+#   RustDesk_Velour-<version>-windows-x64   folder with rustdesk.exe (portable)
+#   RustDesk_Velour-<version>-macos-arm64   zip of RustDesk_Velour.app (Apple Silicon)
+#   RustDesk_Velour-<version>-macos-x64     zip of RustDesk_Velour.app (Intel)
+#
+# Mirrors the x64-Windows and macOS legs of upstream's flutter-build.yml,
+# minus code signing and notarization (those need certificates this fork does
+# not have), so every artifact is unsigned.
+name: Velour release build
+
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: "Which artifacts to build"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - windows-x64
+          - macos-arm64
+          - macos-x64
+
+env:
+  RUST_VERSION: "1.75"
+  MAC_RUST_VERSION: "1.81" # cidre requires 1.81 on macOS
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+
+jobs:
+  setup:
+    name: Resolve version and targets
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      mac-matrix: ${{ steps.plan.outputs.mac-matrix }}
+      build-windows: ${{ steps.plan.outputs.build-windows }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Plan the run
+        id: plan
+        shell: bash
+        run: |
+          version="$(grep -oE 'VELOUR_VERSION: &str = "[^"]+"' src/common.rs | grep -oE '[0-9][^"]*')"
+          if [ -z "$version" ]; then
+            echo "VELOUR_VERSION not found in src/common.rs"; exit 1
+          fi
+          arm='{"arch":"arm64","target":"aarch64-apple-darwin","os":"macos-14","vcpkg-triplet":"arm64-osx","extra-build-args":"--screencapturekit"}'
+          x64='{"arch":"x64","target":"x86_64-apple-darwin","os":"macos-15-intel","vcpkg-triplet":"x64-osx","extra-build-args":""}'
+          case "${{ inputs.targets }}" in
+            all)         mac="[$arm,$x64]"; win=true  ;;
+            windows-x64) mac="[]";          win=true  ;;
+            macos-arm64) mac="[$arm]";      win=false ;;
+            macos-x64)   mac="[$x64]";      win=false ;;
+            *) echo "unknown target: ${{ inputs.targets }}"; exit 1 ;;
+          esac
+          {
+            echo "version=$version"
+            echo "mac-matrix=$mac"
+            echo "build-windows=$win"
+          } >> "$GITHUB_OUTPUT"
+          echo "Velour $version; windows=$win; mac=$mac"
+
+  generate-bridge:
+    uses: ./.github/workflows/bridge.yml
+
+  build-RustDeskTempTopMostWindow:
+    needs: [setup]
+    if: needs.setup.outputs.build-windows == 'true'
+    uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
+    with:
+      upload-artifact: true
+      target: windows-2022
+      configuration: Release
+      platform: x64
+      target_version: Windows10
+
+  build-windows-x64:
+    name: windows-x64
+    needs: [setup, generate-bridge, build-RustDeskTempTopMostWindow]
+    if: needs.setup.outputs.build-windows == 'true'
+    runs-on: windows-2022
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0 # v2.0.9
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install flutter
+        uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225 # v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          architecture: x64
+
+      - name: Replace engine with rustdesk custom flutter engine
+        run: |
+          flutter doctor -v
+          flutter precache --windows
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+          mv -Force windows-x64-release/*  C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+
+      - name: Patch flutter
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+          cd $(dirname $(dirname $(which flutter)))
+          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          prefix-key: windows-2022
+
+      - name: Setup vcpkg with Github Actions binary cache
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        shell: bash
+        run: |
+          $VCPKG_ROOT/vcpkg install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"
+
+      - name: Build rustdesk
+        run: |
+          python3 .\build.py --portable --flutter --skip-portable-pack --hwcodec --vram
+          mv ./flutter/build/windows/x64/runner/Release ./RustDesk_Velour
+
+      - name: Download RustDeskTempTopMostWindow artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: topmostwindow-artifacts-x64
+          path: "./RustDesk_Velour"
+
+      - name: Upload app folder
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: RustDesk_Velour-${{ needs.setup.outputs.version }}-windows-x64
+          path: RustDesk_Velour
+
+  build-macos:
+    name: macos-${{ matrix.job.arch }}
+    needs: [setup, generate-bridge]
+    if: needs.setup.outputs.mac-matrix != '[]'
+    runs-on: ${{ matrix.job.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(needs.setup.outputs.mac-matrix) }}
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Install build runtime
+        run: |
+          brew install llvm
+          # pkg-config may already be present on the runner image
+          if command -v pkg-config &>/dev/null; then
+              echo "pkg-config is already installed"
+          else
+              brew install pkg-config
+          fi
+
+      - name: Install NASM
+        run: |
+          # NASM 2.16.x from the official release: `brew install nasm` gives
+          # NASM 3.x, whose CLI aom and friends cannot build against.
+          wget https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/macosx/nasm-2.16.03-macosx.zip
+          unzip nasm-2.16.03-macosx.zip
+          sudo cp nasm-2.16.03/nasm /usr/local/bin/nasm
+          nasm --version
+
+      - name: Install flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Patch flutter
+        run: |
+          cd $(dirname $(dirname $(which flutter)))
+          if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
+            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+          fi
+
+      - name: Workaround for flutter issue
+        shell: bash
+        run: |
+          cd "$(dirname "$(which flutter)")"
+          # https://github.com/flutter/flutter/issues/133533
+          sed -i -e 's/_setFramesEnabledState(false);/\/\/_setFramesEnabledState(false);/g' ../packages/flutter/lib/src/scheduler/binding.dart
+          grep -n '_setFramesEnabledState(false);' ../packages/flutter/lib/src/scheduler/binding.dart
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: ${{ env.MAC_RUST_VERSION }}
+          targets: ${{ matrix.job.target }}
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          prefix-key: ${{ matrix.job.os }}
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Setup vcpkg with Github Actions binary cache
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        run: |
+          if ! $VCPKG_ROOT/vcpkg \
+            install \
+            --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
+              echo "$_1:"
+              echo "======"
+              cat "$_1"
+              echo "======"
+              echo ""
+            done
+            exit 1
+          fi
+
+      - name: Show version information (Rust, cargo, Clang)
+        shell: bash
+        run: |
+          clang --version || true
+          rustup -V
+          rustup toolchain list
+          rustup default
+          cargo -V
+          rustc -V
+
+      - name: Build rustdesk
+        run: |
+          if [ "${{ matrix.job.target }}" = "aarch64-apple-darwin" ]; then
+            MIN_MACOS_VERSION="12.3"
+            sed -i -e "s/MACOSX_DEPLOYMENT_TARGET\=[0-9]*.[0-9]*/MACOSX_DEPLOYMENT_TARGET=${MIN_MACOS_VERSION}/" build.py
+            sed -i -e "s/platform :osx, '.*'/platform :osx, '${MIN_MACOS_VERSION}'/" flutter/macos/Podfile
+            sed -i -e "s/osx_minimum_system_version = \"[0-9]*.[0-9]*\"/osx_minimum_system_version = \"${MIN_MACOS_VERSION}\"/" Cargo.toml
+            sed -i -e "s/MACOSX_DEPLOYMENT_TARGET = [0-9]*.[0-9]*;/MACOSX_DEPLOYMENT_TARGET = ${MIN_MACOS_VERSION};/" flutter/macos/Runner.xcodeproj/project.pbxproj
+          fi
+          ./build.py --flutter --hwcodec --unix-file-copy-paste ${{ matrix.job.extra-build-args }}
+
+      - name: Package RustDesk_Velour.app
+        shell: bash
+        run: |
+          APP=flutter/build/macos/Build/Products/Release/RustDesk.app
+          DYLIB="$APP/Contents/Frameworks/liblibrustdesk.dylib"
+          # Fail loudly rather than shipping a bundle without the Velour code.
+          [ -f "$DYLIB" ] || { echo "missing $DYLIB"; ls -la "$APP/Contents/Frameworks" || true; exit 1; }
+          nm -gU "$DYLIB" | grep -q velour \
+            || { echo "$DYLIB has no Velour symbols"; exit 1; }
+          mkdir -p dist
+          cp -R "$APP" dist/RustDesk_Velour.app
+          # ditto, not upload-artifact on the .app: the upload flattens symlinks
+          # and drops the executable bit, which breaks the bundle.
+          cd dist && ditto -c -k --keepParent RustDesk_Velour.app \
+            "RustDesk_Velour-${{ needs.setup.outputs.version }}-macos-${{ matrix.job.arch }}.zip"
+
+      - name: Upload app zip
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: RustDesk_Velour-${{ needs.setup.outputs.version }}-macos-${{ matrix.job.arch }}
+          path: dist/RustDesk_Velour-*.zip

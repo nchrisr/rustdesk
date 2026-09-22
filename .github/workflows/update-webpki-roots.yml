@@ -1,6 +1,6 @@
 name: Update webpki-roots
 
-# Weekly refresh of the compiled-in TLS root certificates (the webpki-roots
+# Refresh of the compiled-in TLS root certificates (the webpki-roots
 # crate, a snapshot of the Mozilla root store). Roots are otherwise frozen at
 # whatever Cargo.lock pins, so old builds miss newly added CAs and keep
 # removed (distrusted) ones. Changes go through a PR on purpose: added or
@@ -11,13 +11,12 @@ name: Update webpki-roots
 # branch, to run CI on it.
 
 on:
-  schedule:
-    - cron: "0 3 * * 1"
+  # Manual only in this fork; run it when you want the roots refreshed.
   workflow_dispatch:
 
-# A manual dispatch overlapping the weekly run would race it force-pushing
-# the same branch; queue instead of overlapping, and never cancel a run
-# that may have already pushed.
+# Two dispatches overlapping would race each other force-pushing the same
+# branch; queue instead of overlapping, and never cancel a run that may have
+# already pushed.
 concurrency:
   group: update-webpki-roots
   cancel-in-progress: false

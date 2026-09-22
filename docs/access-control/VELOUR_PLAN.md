@@ -566,10 +566,11 @@ option / `RENDEZVOUS_SERVER` env). Not scheduled.
 
 ## 9b. Post-release follow-ups (agreed 2026-09-15)
 
-* **Intel Mac build**: add a macOS x86_64 job (`macos-13` runner) to
-  `.github/workflows/velour-windows.yml` (rename to `velour-release.yml`),
-  mirroring upstream's `build-for-macOS` steps without signing; artifact
-  `RustDesk_Velour-<version>-macos-x64`. After the 0.1 retest.
+* ~~**Intel Mac build**~~ — done 2026-09-22: `velour-release.yml` builds
+  Windows x64, macOS arm64 and macOS x64 on demand (one workflow, a target
+  dropdown). Every scheduled workflow was switched to manual at the same
+  time; `ci.yml`/`flutter-ci.yml` still run on push to `master` and
+  `fdroid.yml`/`flutter-tag.yml` on version tags, as upstream has them.
 * **Velour 1.0**: bump `VELOUR_VERSION` when the user is satisfied with 0.1.
 * Code signing / notarization (optional; removes the "Run anyway" and
   right-click → Open steps).

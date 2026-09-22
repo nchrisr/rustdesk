@@ -8,7 +8,8 @@ backend and credentials as before (Mac `436072673` at `192.168.2.40`, key
 
 ### Mac
 1. Quit any running RustDesk (Cmd+Q) — including the debug one.
-2. Unzip `dist/RustDesk_Velour-macos-arm64.zip` and drag
+2. Unzip `RustDesk_Velour-<version>-macos-arm64.zip` (from the CI run, or
+   `dist/` if you built it on this Mac) and drag
    `RustDesk_Velour.app` into **Applications**.
 3. Open it: right-click → **Open** → **Open** (unsigned build; once only).
 4. Settings → About shows **About RustDesk-Velour**.
@@ -23,7 +24,7 @@ backend and credentials as before (Mac `436072673` at `192.168.2.40`, key
 
 ### Windows PC
 1. Close the old RustDesk-Velour if it is running.
-2. Unzip `RustDesk_Velour-windows-x64.zip`; you get a folder
+2. Unzip `RustDesk_Velour-<version>-windows-x64.zip`; you get a folder
    `RustDesk_Velour`. Put it at `C:\RustDesk_Velour\`. The old `C:\Velour\`
    can be deleted.
 3. Run `rustdesk.exe` → More info → Run anyway.

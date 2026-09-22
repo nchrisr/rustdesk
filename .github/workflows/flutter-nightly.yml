@@ -1,9 +1,8 @@
 name: Flutter Nightly Build
 
 on:
-  schedule:
-    # schedule build every night
-    - cron: "0 0 * * *"
+  # Manual only: this fork builds its deliverables with
+  # .github/workflows/velour-release.yml, on demand.
   workflow_dispatch:
 
 jobs:

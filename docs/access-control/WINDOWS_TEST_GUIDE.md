@@ -15,15 +15,14 @@ device API key `velour-dev-key`, Alice's token `alice-token`, Uma's token
 
 ## Part 1 — Get a Windows build (GitHub builds it)
 
-1. Push the branch: `git push origin rustdesk_velour`.
-   The workflow file must also exist on the fork's default branch (`master`)
-   or GitHub will not list it — that was done once on 2026-09-15.
-2. github.com → your fork → **Actions** → **Velour Windows build** →
-   **Run workflow** → branch **rustdesk_velour** → **Run workflow**.
-   First run ~45–60 min; later runs are faster (cached).
+1. Push `master`: `git push origin master`.
+   GitHub only lists a workflow if it exists on the fork's default branch.
+2. github.com → your fork → **Actions** → **Velour release build** →
+   **Run workflow** → branch **master** → target **windows-x64** (or `all`)
+   → **Run workflow**. First run ~45–60 min; later runs are faster (cached).
 3. When green: open the run → **Artifacts** → download
-   **rustdesk-velour-windows-x64** (a zip). Download it on the PC directly,
-   or via a flash drive.
+   **RustDesk_Velour-<version>-windows-x64** (a zip). Download it on the PC
+   directly, or via a flash drive.
 
 ## Part 2 — Windows PC: set up the app (portable, no install)
 
@@ -125,6 +124,6 @@ Record results in `TEST_LOG.md`.
 
 * Mac: `cargo build --features flutter --lib` then `flutter build macos
   --debug` (BUILD_MACOS.md), rerun the Part 4 command.
-* PC: push, run **Velour Windows build**, download the new zip, close
+* PC: push, run **Velour release build**, download the new zip, close
   RustDesk on the PC, extract over `C:\Velour\`, run `rustdesk.exe` again.
   Settings and ID survive (they live in the Windows user profile).
