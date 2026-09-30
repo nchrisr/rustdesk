@@ -276,7 +276,7 @@ mod tests {
                 display_name: "Ada".into(),
                 monitoring: false,
                 offline_authorized: true,
-                remaining_seconds: Some(600),
+                deadline_unix: Some(1_700_000_600),
             },
             started_at: SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000),
         }

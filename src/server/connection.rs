@@ -1106,6 +1106,9 @@ impl Connection {
                             break;
                         }
                     }
+                    if !conn.velour_check_deadline().await {
+                        break;
+                    }
                     if video_service::qos_diag_verbose() && conn.video_send_count > 0 {
                         // Joined with `qos_trace` on `t`: a probe that waits behind a
                         // blocked write is not a slow network.
@@ -2409,7 +2412,7 @@ impl Connection {
             return;
         };
         let elapsed = reporter.elapsed_seconds() as i64;
-        let remaining = ac.remaining_seconds;
+        let remaining = ac.remaining_at(crate::access_control::now_unix());
         let data = ipc::Data::VelourSession {
             id: self.inner.id(),
             display_name: ac.display_name.clone(),
@@ -2423,6 +2426,28 @@ impl Connection {
         self.send_to_cm(data);
     }
 
+    /// RustDesk-Velour: ends the session once its countdown reaches zero,
+    /// without waiting for a heartbeat reply to say so - the backend has no
+    /// way to reach this machine, so a session whose heartbeats stop arriving
+    /// would otherwise run past its limit. Returns false when it closed the
+    /// connection and the loop must exit.
+    async fn velour_check_deadline(&mut self) -> bool {
+        let now = crate::access_control::now_unix();
+        if !self.ac.as_ref().map_or(false, |ac| ac.is_expired(now)) {
+            return true;
+        }
+        log::info!("access control: countdown reached zero, ending session");
+        self.ac_end_reason = Some("time_limit");
+        // The prefix keeps the peer from auto-reconnecting (see check_if_retry).
+        self.send_close_reason_no_retry(&format!(
+            "Access control: {}",
+            crate::access_control::MSG_TIME_LIMIT
+        ))
+        .await;
+        self.on_close("countdown reached zero", true).await;
+        false
+    }
+
     /// RustDesk-Velour: applies a heartbeat answer. Returns false when the
     /// backend ended the session and the loop must exit.
     async fn velour_on_heartbeat(
@@ -2432,8 +2457,9 @@ impl Connection {
         use crate::access_control::events::HeartbeatResult;
         match hb {
             HeartbeatResult::Continue { remaining_seconds } => {
+                let now = crate::access_control::now_unix();
                 if let Some(ac) = self.ac.as_mut() {
-                    ac.remaining_seconds = remaining_seconds;
+                    ac.set_remaining(remaining_seconds, now);
                 }
                 self.velour_send_session_time().await;
                 true

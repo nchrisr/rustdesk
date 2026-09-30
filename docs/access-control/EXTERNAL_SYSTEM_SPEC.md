@@ -276,7 +276,7 @@ Event types and `data` payloads:
 |---|---|---|---|
 | `session_start` | Once, after approval | `{}` | `{ "ok": true }` |
 | `heartbeat` | Every 30 s while active | `{}` | see below |
-| `session_end` | Once, on close | `{ "reason": "peer_disconnected" \| "device_closed" \| "network_lost" \| "backend_stop" \| "access_control_disabled" \| "other", "detail": "…" }` | `{ "ok": true }` |
+| `session_end` | Once, on close | `{ "reason": "peer_disconnected" \| "device_closed" \| "network_lost" \| "backend_stop" \| "time_limit" \| "access_control_disabled" \| "other", "detail": "…" }` | `{ "ok": true }` |
 | `auth_denied` | Device refused a connection itself | `{ "reason_code": "no_token" \| "not_configured" \| "backend_unreachable" \| "user_already_connected" \| "cache_expired", "reason": "…" }` | `{ "ok": true }` |
 
 Processing rules:
@@ -401,13 +401,28 @@ clamp to 0. If `remaining == 0` on a heartbeat, respond `continue: false`.
 Because this is recomputed every 30 seconds, an admin who extends a quota or
 schedule sees the change reflected on the user's screen within one heartbeat.
 
+**The device enforces this number itself.** It turns each `remaining_seconds`
+into a wall-clock deadline and ends the session when that deadline passes,
+whether or not a heartbeat reply arrives — so a machine that loses its network
+or suspends cannot run past its limit. Consequences for this backend:
+
+* A number sent once is binding until it is replaced. Sending a *larger*
+  `remaining_seconds` extends the session; sending `null` removes the limit.
+* `null` means unlimited, and the device enforces no limit of its own. Never
+  omit the field expecting a default cut-off; there is none.
+* Such a session ends with `reason: "time_limit"` rather than `backend_stop`,
+  and the `continue: false` your next heartbeat reply would have carried is
+  simply never collected.
+
 ### 5.4 Manual termination
 
 The admin UI should offer "End session" on any active session. Implement it by
 flagging the session (e.g. `terminate_requested = true`); the next heartbeat
 gets `{ "continue": false, "reason": "Session ended by administrator." }`.
 There is no push channel to the device; termination takes up to one heartbeat
-interval.
+interval — and only if heartbeats are still arriving. Limits expressible as
+`remaining_seconds` (schedules, quotas) do not depend on that, because the
+device counts them down locally (§5.3); a manual "End session" does.
 
 ## 6. Admin UI requirements (internal, not an API contract)
 

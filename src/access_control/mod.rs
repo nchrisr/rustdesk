@@ -30,6 +30,18 @@ pub const ACCESS_APP_NAME: &str = "rustdesk";
 /// backend's own latency budget is 5 s; this leaves room for a cold start.
 pub const ACCESS_HTTP_TIMEOUT_SECS: u64 = 10;
 
+/// Shown to the peer when the device ends a session because its countdown
+/// reached zero. The device cannot know *what* ran out - a schedule or a
+/// quota - because the backend only names that in a `continue: false` reply,
+/// which by definition never arrives in this case.
+pub const MSG_TIME_LIMIT: &str = "Your allowed time has ended.";
+
+/// Wall-clock seconds since the unix epoch, the clock every deadline uses.
+#[inline]
+pub fn now_unix() -> i64 {
+    hbb_common::chrono::Utc::now().timestamp()
+}
+
 /// The device -> peer time message (proto `SessionTime`).
 pub fn session_time_misc(elapsed_seconds: i64, remaining: Option<i64>) -> base::message_proto::Misc {
     use base::message_proto::{Misc, SessionTime};

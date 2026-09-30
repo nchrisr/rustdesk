@@ -155,10 +155,31 @@ See spec §4.2 for payloads. Device side:
 * Turning the master switch off while sessions are active emits `session_end`
   with `data.reason = "access_control_disabled"` for each and stops reporting.
 
-### 3.4 Countdown and elapsed time
+### 3.4 Countdown, elapsed time, and the local deadline
 
+* **The device enforces the countdown itself** (backend change request,
+  2026-09-30). `remaining_seconds` from `/v1/authorize` and from every
+  heartbeat reply is turned into a wall-clock deadline
+  (`AcSession::set_remaining`); a check on the connection's existing
+  one-second tick closes the session once it passes, whatever the heartbeats
+  are doing. Without this, a session whose heartbeats stop arriving — network
+  gone, machine suspended — runs past its limit, because the backend has no
+  push channel to reach it.
+  * Wall clock, not elapsed time: a machine that suspends past its deadline
+    ends the session as soon as it wakes.
+  * A later reply moves the deadline in either direction; `null` clears it.
+    No limit means no limit — the device never invents a cap of its own.
+  * Close reason to the peer: `MSG_TIME_LIMIT`, prefixed "Access control: "
+    like a backend stop so the peer does not auto-reconnect. The device
+    cannot say *what* ran out; only the backend knows that, and it only says
+    so in a `continue: false` reply, which by definition never arrives here.
+  * `session_end` carries `reason: "time_limit"`,
+    `detail: "countdown reached zero"`.
+  * Offline-authorised sessions have no deadline: the cache stores no
+    `remaining_seconds`, and a stale one would be an invented limit.
 * The device forwards `remaining_seconds` (and elapsed) to the peer in a new
-  `Misc` message (§5.3). The peer shows a countdown in the remote view once
+  `Misc` message (§5.3), derived from the deadline so the figure self-corrects
+  after a suspend. The peer shows a countdown in the remote view once
   `remaining ≤ 4 h`; always visible from then on; turns red under 30 min
   (thresholds configurable). Between heartbeats the peer counts down locally.
 * Milestone toasts at 4:00, 3:30, 3:00 … 0:30, then 10, 5, 1 min (list in a
@@ -204,6 +225,9 @@ re-litigated:
 | Heartbeat every 30 s, two-way; backend answers `continue` + `remaining_seconds` | Backend enforces quotas without RustDesk knowing about them; changes propagate within one heartbeat. |
 | Failed heartbeats never cut sessions | A backend outage must not kick everyone. |
 | Cut-offs only when `remaining_seconds` hits 0; countdown shown from 4 h | User explicitly did not want abrupt disconnects. |
+| The device ends the session when its own countdown hits zero, rather than waiting for `continue: false` (2026-09-30) | The backend cannot reach the machine; a session whose heartbeats stop would otherwise run past its limit. |
+| That deadline uses wall clock, so suspended time counts | The usual driver is a schedule window, and it can never grant more than the schedule allows. |
+| No deadline for offline-authorised sessions | The cache holds no `remaining_seconds`, and enforcing a stale one would be inventing a limit rather than obeying one. |
 | Countdown shown on both peer and device (CM) | Requested. |
 | Admin/Manager joining does not kick a User | Less disruptive; admin can end sessions via backend. |
 | Schedules and quotas are per user **per device**, with a default set and per-device overrides | Requested. |

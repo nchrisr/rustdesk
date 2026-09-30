@@ -19,7 +19,30 @@ pub struct AcSession {
     pub monitoring: bool,
     /// Admitted from the offline cache while the backend was unreachable.
     pub offline_authorized: bool,
-    pub remaining_seconds: Option<i64>,
+    /// Wall-clock unix second this session must end at; `None` = no limit.
+    /// Wall clock rather than elapsed time, so a machine that suspends past
+    /// its deadline ends the session as soon as it wakes.
+    pub deadline_unix: Option<i64>,
+}
+
+impl AcSession {
+    /// Applies a fresh `remaining_seconds` from the backend. The latest answer
+    /// is the truth, so this moves the deadline later as readily as earlier;
+    /// `None` clears the limit.
+    pub fn set_remaining(&mut self, remaining: Option<i64>, now_unix: i64) {
+        self.deadline_unix = remaining.map(|r| now_unix.saturating_add(r.max(0)));
+    }
+
+    /// Seconds left at `now_unix`, never negative; `None` = no limit.
+    pub fn remaining_at(&self, now_unix: i64) -> Option<i64> {
+        self.deadline_unix
+            .map(|d| d.saturating_sub(now_unix).max(0))
+    }
+
+    /// Whether the countdown has run out. Always false without a limit.
+    pub fn is_expired(&self, now_unix: i64) -> bool {
+        self.remaining_at(now_unix) == Some(0)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,15 +131,17 @@ pub async fn decide(
         return deny(e.reason_code(), e.message());
     }
 
-    Decision::Allow(AcSession {
+    let mut session = AcSession {
         session_id: uuid::Uuid::new_v4().to_string(),
         role,
         user_id,
         display_name,
         monitoring: req.monitoring,
         offline_authorized: offline,
-        remaining_seconds: remaining,
-    })
+        deadline_unix: None,
+    };
+    session.set_remaining(remaining, now_unix);
+    Decision::Allow(session)
 }
 
 #[cfg(test)]
@@ -193,7 +218,7 @@ mod tests {
             Decision::Allow(s) => {
                 assert_eq!(s.role, Role::Manager);
                 assert_eq!(s.display_name, "Ada");
-                assert_eq!(s.remaining_seconds, Some(600));
+                assert_eq!(s.remaining_at(NOW), Some(600));
                 assert!(!s.offline_authorized);
                 assert!(!s.session_id.is_empty());
             }
@@ -249,7 +274,11 @@ mod tests {
             Decision::Allow(s) => {
                 assert_eq!(s.role, Role::Manager);
                 assert!(s.offline_authorized);
-                assert_eq!(s.remaining_seconds, None, "no countdown until the backend answers");
+                assert_eq!(
+                    s.remaining_at(NOW),
+                    None,
+                    "no countdown until the backend answers"
+                );
             }
             other => panic!("{other:?}"),
         }
@@ -287,6 +316,60 @@ mod tests {
         }];
         let d = decide(&b, &cfg(), &mut c, &r, NOW).await;
         assert!(matches!(d, Decision::Deny { ref reason_code, .. } if reason_code == "user_already_connected"));
+    }
+
+    fn session_with(remaining: Option<i64>) -> AcSession {
+        let mut s = AcSession {
+            session_id: "s".into(),
+            role: Role::User,
+            user_id: "u".into(),
+            display_name: "Uma".into(),
+            monitoring: false,
+            offline_authorized: false,
+            deadline_unix: None,
+        };
+        s.set_remaining(remaining, NOW);
+        s
+    }
+
+    #[test]
+    fn no_limit_never_expires() {
+        let s = session_with(None);
+        assert_eq!(s.deadline_unix, None);
+        assert_eq!(s.remaining_at(NOW + 10_000_000), None);
+        assert!(!s.is_expired(NOW + 10_000_000));
+    }
+
+    #[test]
+    fn countdown_runs_out_exactly_at_the_deadline() {
+        let s = session_with(Some(60));
+        assert_eq!(s.remaining_at(NOW), Some(60));
+        assert_eq!(s.remaining_at(NOW + 59), Some(1));
+        assert!(!s.is_expired(NOW + 59));
+        assert!(s.is_expired(NOW + 60));
+        // Wall clock: time the machine spent asleep still counts.
+        assert_eq!(s.remaining_at(NOW + 7200), Some(0));
+        assert!(s.is_expired(NOW + 7200));
+    }
+
+    #[test]
+    fn a_later_answer_extends_the_deadline() {
+        let mut s = session_with(Some(60));
+        s.set_remaining(Some(3600), NOW + 30);
+        assert!(!s.is_expired(NOW + 60), "the old deadline is gone");
+        assert_eq!(s.remaining_at(NOW + 30), Some(3600));
+        // ... and shortens it just as readily.
+        s.set_remaining(Some(5), NOW + 30);
+        assert!(s.is_expired(NOW + 35));
+        // A null clears the limit entirely.
+        s.set_remaining(None, NOW + 30);
+        assert!(!s.is_expired(NOW + 10_000));
+    }
+
+    #[test]
+    fn a_non_positive_answer_expires_immediately() {
+        assert!(session_with(Some(0)).is_expired(NOW));
+        assert!(session_with(Some(-5)).is_expired(NOW));
     }
 
     #[tokio::test]
