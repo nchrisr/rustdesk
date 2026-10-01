@@ -305,8 +305,11 @@ jobs:
           DYLIB="$APP/Contents/Frameworks/liblibrustdesk.dylib"
           # Fail loudly rather than shipping a bundle without the Velour code.
           [ -f "$DYLIB" ] || { echo "missing $DYLIB"; ls -la "$APP/Contents/Frameworks" || true; exit 1; }
-          nm -gU "$DYLIB" | grep -q velour \
-            || { echo "$DYLIB has no Velour symbols"; exit 1; }
+          # grep -c, not grep -q: -q exits on the first match and the closed
+          # pipe kills nm, which `set -o pipefail` (on for every Actions step)
+          # then reports as a failed step. -c reads the stream to the end.
+          found="$(nm -gU "$DYLIB" | grep -c velour || true)"
+          [ "${found:-0}" -gt 0 ] || { echo "$DYLIB has no Velour symbols"; exit 1; }
           mkdir -p dist
           cp -R "$APP" dist/RustDesk_Velour.app
           # ditto, not upload-artifact on the .app: the upload flattens symlinks

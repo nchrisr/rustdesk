@@ -26,6 +26,8 @@
 | 2026-09-15 | — | — | Unwanted audio: Settings → Security → Permissions → Enable audio off | resolved |
 | 2026-09-30 | deadline change (pre-commit) | time limit | Authorize returns `remaining_seconds: 61`, backend killed 19 s in so no heartbeat ever succeeded → session closed itself at exactly +61 s (`countdown reached zero`) | pass (Mac self-connect) |
 | — | — | time limit | `session_end` with `reason: "time_limit"` observed live | not yet — the test connection never completed login (stale saved password on this Mac), so no reporter was running; verified by code path instead |
+| 2026-10-01 | 9254e43a6 | CI | Velour release build: windows-x64 artifact produced | pass |
+| 2026-10-01 | 9254e43a6 | CI | Both macOS legs failed at the "Package RustDesk_Velour.app" step — `grep -q` exits on first match, the closed pipe kills `nm`, and Actions' `set -o pipefail` reports the step as failed. The builds themselves were fine. Fixed with `grep -c` | fixed, re-run pending |
 | — | — | WP5 | Wall from a second (admin) machine: monitoring flag, view-only, 6-tile limit | pending |
 | — | — | WP2 | Two-machine matrix (user/manager/user-blocked, stock peer, stock device) | pending — user will test from a Windows machine |
 
