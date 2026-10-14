@@ -1620,7 +1620,12 @@ bool option2bool(String option, String value) {
   } else if (option.startsWith("allow-") ||
       option == kOptionStopService ||
       option == kOptionDirectServer ||
-      option == kOptionForceAlwaysRelay) {
+      option == kOptionForceAlwaysRelay ||
+      // RustDesk-Velour: the server only enforces access control when the
+      // option is exactly "Y" (AcConfig). Under the default rule an unset value
+      // read as ticked, so a fresh install *showed* access control on while
+      // letting every connection in unchecked.
+      option == kOptionAccessControl) {
     res = value == "Y";
   } else {
     // "" is true
@@ -1639,7 +1644,8 @@ String bool2option(String option, bool b) {
   } else if (option.startsWith('allow-') ||
       option == kOptionStopService ||
       option == kOptionDirectServer ||
-      option == kOptionForceAlwaysRelay) {
+      option == kOptionForceAlwaysRelay ||
+      option == kOptionAccessControl) {   // see option2bool
     res = b ? 'Y' : defaultOptionNo;
   } else {
     res = b ? 'Y' : 'N';
