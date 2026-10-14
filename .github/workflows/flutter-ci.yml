@@ -1,21 +1,11 @@
 name: Full Flutter CI
 
+# RustDesk-Velour: manual only. This is upstream's all-platform build; it asks
+# for contents: write (which this fork's read-only default token can't grant,
+# so push-triggered runs failed at startup) and needs upstream's signing
+# secrets. Velour builds come from "Velour release build" (velour-release.yml).
 on:
   workflow_dispatch:
-  pull_request:
-    paths-ignore:
-    - "docs/**"
-    - "README.md"
-  push:
-    branches:
-      - master
-    paths-ignore:
-      - ".github/**"
-      - "docs/**"
-      - "README.md"
-      - "res/**"
-      - "appimage/**"
-      - "flatpak/**"
 
 jobs:
   run-ci:
