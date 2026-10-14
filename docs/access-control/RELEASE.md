@@ -12,8 +12,10 @@ Two numbers, shown together on the About page as
   bumped by hand for each Velour release (0.1, 0.2 … 1.0). It goes into the
   deliverable names.
 
-To cut a release: edit `VELOUR_VERSION`, commit, push `master`, then build
-both files below.
+To cut a release: edit `VELOUR_VERSION`, commit, push `master`, run the
+**CI** workflow by hand (Actions → **CI** → Run workflow — it builds the Rust
+side on Linux and runs the tests, including access control's; nothing runs it
+automatically any more), then build the files below.
 
 Three files, all unsigned (Windows shows "Run anyway" once; macOS needs
 right-click → Open once):

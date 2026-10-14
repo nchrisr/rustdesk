@@ -7,22 +7,11 @@ env:
   # for multiarch gcc compatibility
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
 
+# RustDesk-Velour: manual only (owner's choice). Builds the Rust side for
+# Linux and runs the Rust tests, including access control's. Run it from
+# Actions before cutting a release (docs/access-control/RELEASE.md).
 on:
   workflow_dispatch:
-  pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "README.md"
-  push:
-    branches:
-      - master
-    paths-ignore:
-      - ".github/**"
-      - "docs/**"
-      - "README.md"
-      - "res/**"
-      - "appimage/**"
-      - "flatpak/**"
 
 jobs:
   # ensure_cargo_fmt:
