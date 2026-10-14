@@ -1071,9 +1071,9 @@ pub const EDITION_NAME: &str = "Velour";
 /// Velour's own release number, independent of the RustDesk version it is
 /// built on (which peers exchange and gate features on). Bump by hand for
 /// each Velour release; the RustDesk version keeps tracking upstream.
-pub const VELOUR_VERSION: &str = "0.1";
+pub const VELOUR_VERSION: &str = "0.2";
 
-/// "RustDesk-Velour 0.1" — for the About page and deliverable names.
+/// "RustDesk-Velour 0.2" — for the About page and deliverable names.
 #[inline]
 pub fn get_edition_version() -> String {
     format!("{} {}", get_edition_name(), VELOUR_VERSION)
