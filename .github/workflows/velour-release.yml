@@ -311,9 +311,21 @@ jobs:
           found="$(nm -gU "$DYLIB" | grep -c velour || true)"
           [ "${found:-0}" -gt 0 ] || { echo "$DYLIB has no Velour symbols"; exit 1; }
           mkdir -p dist
-          cp -R "$APP" dist/RustDesk_Velour.app
-          # ditto, not upload-artifact on the .app: the upload flattens symlinks
-          # and drops the executable bit, which breaks the bundle.
+          # ditto, not cp -R: it is the only copy that keeps a signed bundle's
+          # extended attributes and symlinks intact.
+          ditto "$APP" dist/RustDesk_Velour.app
+          # build.py drops target/release/service into Contents/MacOS *after*
+          # Xcode has signed the bundle, which breaks its seal; upstream repairs
+          # that by signing with their Developer ID afterwards, a step this fork
+          # does not have. Without a repair the app dies at launch with
+          # "different Team IDs" when dyld refuses the Flutter framework.
+          # Ad-hoc re-sign the whole bundle so every nested binary matches.
+          codesign --force --deep --sign - dist/RustDesk_Velour.app
+          # Gate the release on it: a bundle that cannot load is worse than a
+          # failed build, and nothing else here would catch it.
+          codesign --verify --strict --verbose=2 dist/RustDesk_Velour.app
+          # ditto again for the zip, since upload-artifact on a raw .app
+          # flattens symlinks and drops the executable bit.
           cd dist && ditto -c -k --keepParent RustDesk_Velour.app \
             "RustDesk_Velour-${{ needs.setup.outputs.version }}-macos-${{ matrix.job.arch }}.zip"
 

@@ -24,9 +24,22 @@ You will be given, by your administrator:
    connect *out* to other machines, you can skip this and just run the app.
 
 ### macOS
-1. Move `RustDesk.app` to your Applications folder and open it. If macOS says
-   it "cannot be opened because the developer cannot be verified", right-click
-   the app → **Open** → **Open** (once).
+1. Move `RustDesk_Velour.app` wherever you want to keep it — Applications is
+   usual, but any folder works.
+2. The build is not signed by Apple, so macOS blocks a copy that came from a
+   browser. Open Terminal and run this once, with the path to your copy:
+
+   ```
+   xattr -dr com.apple.quarantine /Applications/RustDesk_Velour.app
+   ```
+
+   Then open the app normally. Dragging the app into the Terminal window
+   after typing the command fills in the path for you.
+
+   Right-click → **Open** does *not* work here: an unsigned app that is also
+   quarantined is reported as "damaged and can't be opened", and only
+   removing the quarantine flag clears it. Every fresh download needs this
+   again, until the builds are signed and notarized.
 2. macOS will ask for several permissions over the first minutes. Grant the
    ones in step 2 below; decline Microphone.
 

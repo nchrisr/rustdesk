@@ -28,6 +28,8 @@
 | — | — | time limit | `session_end` with `reason: "time_limit"` observed live | not yet — the test connection never completed login (stale saved password on this Mac), so no reporter was running; verified by code path instead |
 | 2026-10-01 | 9254e43a6 | CI | Velour release build: windows-x64 artifact produced | pass |
 | 2026-10-01 | 9254e43a6 | CI | Both macOS legs failed at the "Package RustDesk_Velour.app" step — `grep -q` exits on first match, the closed pipe kills `nm`, and Actions' `set -o pipefail` reports the step as failed. The builds themselves were fine. Fixed with `grep -c` | fixed, re-run pending |
+| 2026-10-21 | 0.3 CI artifact | release | macOS arm64 artifact would not launch: dyld refused the Flutter framework ("different Team IDs"). Cause: build.py copies `target/release/service` into Contents/MacOS after Xcode signed the bundle, breaking its seal; upstream repairs this by signing with their Developer ID, a step this fork does not have. Fixed by ad-hoc re-signing in CI, gated by `codesign --verify --strict` | fixed, re-run pending |
+| 2026-10-21 | 0.3 CI artifact | release | "damaged and can't be opened" on first open = quarantine on an unsigned app; `xattr -dr com.apple.quarantine` clears it (right-click → Open does not) | understood, guide corrected |
 | — | — | WP5 | Wall from a second (admin) machine: monitoring flag, view-only, 6-tile limit | pending |
 | — | — | WP2 | Two-machine matrix (user/manager/user-blocked, stock peer, stock device) | pending — user will test from a Windows machine |
 
