@@ -3785,7 +3785,6 @@ class FFI {
     qualityMonitorModel = QualityMonitorModel(WeakReference(this));
     recordingModel = RecordingModel(WeakReference(this));
     sessionTimeModel = SessionTimeModel(
-      showBelowSecs: _localIntOption(kOptionAccessCountdownShowSecs, 4 * 3600),
       redBelowSecs: _localIntOption(kOptionAccessCountdownRedSecs, 30 * 60),
       onMilestone: (secs) => showToast(
           translate('access-time-left-tip')

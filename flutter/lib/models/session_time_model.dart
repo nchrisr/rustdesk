@@ -15,9 +15,6 @@ class SessionTimeModel {
   /// Seconds left before the backend ends the session; null = unlimited.
   final remaining = Rxn<int>();
 
-  /// Countdown becomes visible at or below this many seconds.
-  int showBelowSecs;
-
   /// Countdown turns red at or below this many seconds.
   int redBelowSecs;
 
@@ -31,7 +28,6 @@ class SessionTimeModel {
   Timer? _ticker;
 
   SessionTimeModel({
-    this.showBelowSecs = 4 * 3600,
     this.redBelowSecs = 30 * 60,
     List<int>? milestones,
     this.onMilestone,
@@ -47,9 +43,14 @@ class SessionTimeModel {
 
   bool get active => elapsed.value >= 0;
 
-  /// Whether the countdown should be on screen.
-  bool get showCountdown =>
-      active && remaining.value != null && remaining.value! <= showBelowSecs;
+  /// Whether the countdown is on screen: whenever the time left is known,
+  /// from the moment the session starts. It used to appear only under 4 h,
+  /// with a stopwatch counting up before that, which read as a timer going the
+  /// wrong way (Velour owner, 2026-10-21).
+  bool get showCountdown => active && remaining.value != null;
+
+  /// The session has no limit: say so rather than show a stopwatch.
+  bool get unlimited => active && remaining.value == null;
 
   bool get isRed =>
       remaining.value != null && remaining.value! <= redBelowSecs;

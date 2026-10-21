@@ -3,9 +3,10 @@ import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/models/session_time_model.dart';
 import 'package:get/get.dart';
 
-/// Top-right badge on a remote view: elapsed time while access control is
-/// active, plus the remaining-time countdown once it is under the threshold
-/// (RustDesk-Velour). Never intercepts input.
+/// Top-right badge on a remote view while access control is active
+/// (RustDesk-Velour): the time left, counting down from the start of the
+/// session and turning red near the end, or "No time limit" when there is
+/// none. Never intercepts input.
 class SessionCountdown extends StatelessWidget {
   final SessionTimeModel model;
   const SessionCountdown({Key? key, required this.model}) : super(key: key);
@@ -35,7 +36,7 @@ class SessionCountdown extends StatelessWidget {
                 Text(
                   show
                       ? '${translate('Time left')} ${SessionTimeModel.format(model.remaining.value ?? 0)}'
-                      : '${translate('Elapsed')} ${SessionTimeModel.format(model.elapsed.value)}',
+                      : translate('No time limit'),
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 12,

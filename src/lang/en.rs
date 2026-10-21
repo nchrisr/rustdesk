@@ -294,6 +294,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("access-min-value-tip", "Must be a whole number of at least {}."),
         ("access-time-left-tip", "Time left in this session: {}"),
         ("Time left", "Time left"),
+        ("No time limit", "No time limit"),
         ("Elapsed", "Elapsed"),
         ("Monitor sessions", "Monitor sessions"),
         ("Active sessions", "Active sessions"),

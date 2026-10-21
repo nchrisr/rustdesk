@@ -138,7 +138,6 @@ const String kOptionAccessHeartbeatSecs = "access-heartbeat-secs";
 const String kOptionAccessCacheDays = "access-cache-days";
 // Local scope (this machine connecting out):
 const String kOptionAccessToken = "access-token";
-const String kOptionAccessCountdownShowSecs = "access-countdown-show-secs";
 const String kOptionAccessCountdownRedSecs = "access-countdown-red-secs";
 const String kOptionAccessWallMaxTiles = "access-wall-max-tiles";
 const String kOptionAllowNumericOneTimePassword =
